@@ -4,7 +4,7 @@
 
 **推荐：直接使用 [AI 安装指南](../AI_INSTALL.md)。** 发布包已经签名，安装到手表只需 ADB，无需源码构建环境。以下保留完整手动和开发安装步骤。
 
-先完成首页的电脑依赖、真实调用聊天编号配置、APK 构建与安装、局域网配对。建议先验证局域网读取历史，再配置公网。当前主要支持 Windows 电脑；其他系统未实现等价的语音和桌面协议支持。
+以下步骤可独立完成首次安装。建议先验证局域网读取历史，再配置公网。电脑端目前主要支持 Windows。
 
 ## 安装前检查
 
@@ -12,13 +12,31 @@
 python --version
 node --version
 codex --version
-java -version
 adb version
 ```
 
-Python、Node 和 Codex 应能从启动脚本使用的 PATH 找到。虚拟环境用户应先激活环境。Android SDK 安装 Platform 35、Build Tools 和 Platform Tools。Android Studio 能生成本机 `local.properties`；不要复制其他人的 SDK 目录配置。
+需要 Python 3.11+、Node.js 20+、已登录的 Codex 桌面和 Android Platform Tools（ADB）。模型目录还需 PATH 中可运行的 `codex`。使用发布包不要求 JDK 或 Android Studio；虚拟环境用户请先激活环境。
 
-使用公开版独立标识 `org.watchchat.app`；其数据不会自动从私人版迁移。初次安装推荐 debug APK 便于本机测试。长期分发请建立自己的正式签名并备份到仓库之外；签名不一致时无法直接覆盖安装。
+## 下载并安装
+
+在 PowerShell 中将工程克隆到本机普通目录，安装电脑依赖并下载签名 APK：
+
+```powershell
+git clone https://github.com/cyuni1996/chatgpt-watch.git
+cd chatgpt-watch
+python tools/setup_watch.py deps
+python tools/setup_watch.py download --tag v0.13.0
+```
+
+下载器会校验 Release 的 SHA-256。手表开启无线调试后，用当次实际地址操作；配对端口与调试端口通常不同，配对码按提示输入：
+
+```powershell
+adb pair WATCH_IP:PAIRING_PORT
+adb connect WATCH_IP:DEBUG_PORT
+python tools/setup_watch.py install --apk .local/downloads/v0.13.0/chatgpt-watch-0.13.0.apk
+```
+
+已配对的手表可跳过 `adb pair`。多设备时为安装器加 `--serial`，ADB 不在 PATH 时加 `--adb`。公开版标识为 `org.watchchat.app`；覆盖更新需保持标识与签名一致。安装失败时不要自动卸载或清除数据。
 
 ## 调用聊天配置与服务生命周期
 
@@ -102,6 +120,18 @@ python tools/manage_connections.py revoke --device-id DEVICE_ID_FROM_LIST
 ```
 
 每台新配对手表使用独立令牌，服务端保存哈希。旧版兼容共享令牌另行保留：撤销某个新设备不等于撤销所有旧版凭据。怀疑凭据泄漏时先停服务，撤销设备并重新配置本机身份；不要把私有配置提交到 Git。
+
+## 源码构建
+
+仅修改源码时需要 JDK 17/21、Android SDK Platform 35、Build Tools 和 Platform Tools。设置 `JAVA_HOME` 与 `ANDROID_HOME`（或本机 `local.properties` 中的 `sdk.dir`），然后运行：
+
+```powershell
+python tools/setup_watch.py doctor --target build
+python tools/setup_watch.py build
+python tools/setup_watch.py install
+```
+
+网络无法访问默认仓库时，可明确使用 `build --mirror`。debug APK 使用本机调试签名，与 Release 签名不同；覆盖更新前核对已有签名。发布构建运行 `.\gradlew.bat :app:assembleRelease`，默认输出未签名包，需用自己的私钥签名并在仓库之外备份。详见 [Android 官方说明](https://developer.android.com/build/building-cmdline)。
 
 ## 更新与排查
 

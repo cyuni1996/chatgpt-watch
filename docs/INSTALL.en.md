@@ -4,7 +4,7 @@
 
 **Recommended: use the [AI installation runbook](../AI_INSTALL.en.md).** The prebuilt release is already signed; installing it requires ADB, not an Android source-build toolchain. Full manual/developer instructions remain below.
 
-Complete the README's companion dependencies, real caller chat configuration, watch build/installation, and LAN pairing first. Verify LAN history reading before setting up Internet access. The companion primarily supports Windows; equivalent speech and desktop integration are not implemented for other operating systems.
+These instructions cover a complete first installation. Verify LAN history reading before setting up Internet access. The companion primarily supports Windows.
 
 ## Preflight
 
@@ -12,13 +12,31 @@ Complete the README's companion dependencies, real caller chat configuration, wa
 python --version
 node --version
 codex --version
-java -version
 adb version
 ```
 
-Python, Node and Codex must be on the launcher's PATH. Activate your Python virtual environment first if applicable. Install Android SDK Platform 35, Build Tools and Platform Tools. Android Studio can generate a local `local.properties`; never copy another developer's SDK path or commit this file.
+Use Python 3.11+, Node.js 20+, signed-in Codex desktop and Android Platform Tools (ADB). The model catalog also requires `codex` on PATH. The prebuilt APK does not require JDK or Android Studio. Activate your virtual environment first if applicable.
 
-The public app uses `org.watchchat.app`; data is not automatically migrated from a private build. A debug APK is suitable for local testing. For distribution, create and privately back up your own release key. An APK signed with a different key cannot update an installed copy in place.
+## Download and install
+
+Clone to a normal local directory in PowerShell, install companion dependencies and download the signed APK:
+
+```powershell
+git clone https://github.com/cyuni1996/chatgpt-watch.git
+cd chatgpt-watch
+python tools/setup_watch.py deps
+python tools/setup_watch.py download --tag v0.13.0
+```
+
+The downloader verifies the release SHA-256. Enable wireless debugging on the watch and use its actual addresses. Pairing and debugging ports are usually different; enter the current code when prompted:
+
+```powershell
+adb pair WATCH_IP:PAIRING_PORT
+adb connect WATCH_IP:DEBUG_PORT
+python tools/setup_watch.py install --apk .local/downloads/v0.13.0/chatgpt-watch-0.13.0.apk
+```
+
+Skip `adb pair` for an already paired watch. Add `--serial` for multiple devices and `--adb` when ADB is not on PATH. The public app ID is `org.watchchat.app`; in-place updates need the same ID and signing key. Never automatically uninstall or clear data after an installation failure.
 
 ## Caller context and lifecycle
 
@@ -102,6 +120,18 @@ python tools/manage_connections.py revoke --device-id DEVICE_ID_FROM_LIST
 ```
 
 Newly paired watches receive independent tokens whose hashes are stored server-side. Legacy shared-token compatibility is separate: revoking one newly paired device does not revoke every old credential. If credentials leak, stop the companion, revoke devices, and reconfigure the affected identity. Never commit private configuration.
+
+## Source build
+
+For source changes, install JDK 17/21, Android SDK Platform 35, Build Tools and Platform Tools. Set `JAVA_HOME` and `ANDROID_HOME`, or `sdk.dir` in a private `local.properties`, then run:
+
+```powershell
+python tools/setup_watch.py doctor --target build
+python tools/setup_watch.py build
+python tools/setup_watch.py install
+```
+
+Use `build --mirror` to explicitly enable repository mirrors if needed. Debug signing differs from the public Release key; check the installed signature before updating. Run `.\gradlew.bat :app:assembleRelease` for an unsigned release build, then sign it with your own privately backed-up key. See [Android documentation](https://developer.android.com/build/building-cmdline).
 
 ## Updating and diagnostics
 

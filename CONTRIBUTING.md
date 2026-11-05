@@ -5,7 +5,7 @@
 Please read both the README and security notes. Compatibility fixes, round-screen accessibility, English UI localization and isolated regressions are welcome.
 
 1. 使用虚构的电脑、项目、聊天和令牌；测试不要连接真实桌面或自动批准真实操作。Use synthetic fixtures, not live chats or approvals.
-2. 安装依赖后运行两组 Python unittest、Node tests 和 Android test/lint/build，命令见首页。Run the documented Python, Node and Android checks.
+2. 按[开发指南](docs/DEVELOPMENT.md)运行 Python、Node 和 Android 回归与构建。Run the checks documented in the development guide.
 3. UI 改动检查圆屏裁切、字号、输入栏／模型栏触区、返回栈、后台停止和滚动位置。Check circular clipping, large text, touch targets, navigation, lifecycle and scroll retention.
 4. 提交前运行 `python tools/check_public_tree.py --tracked`，人工检查媒体和差异。Run the public-tree checker and review media/diffs before committing.
 5. 描述具体问题、修改后的行为和实际验证；注明未做的实机或公网验证。Explain the concrete behavior change, validation and any untested hardware/public-network behavior.

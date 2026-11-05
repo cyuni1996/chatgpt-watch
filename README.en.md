@@ -1,193 +1,130 @@
-# chatgpt-watch
+<p align="center">
+  <img src="app/src/main/res/drawable-nodpi/dragon_portrait.png" width="96" alt="WatchChat icon" />
+</p>
 
-English · [中文](README.md)
+<h1 align="center">WatchChat</h1>
 
-<img src="app/src/main/res/drawable-nodpi/dragon_portrait.png" width="128" alt="WatchChat dragon-character theme icon" />
+<p align="center">Continue your desktop Codex conversations on your wrist.</p>
 
-Continue your computer's Codex chats from a Wear OS watch: read synchronized messages, dictate a prompt, change the next message's model, stop a response, and answer supported approval requests.
+<p align="center">
+  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><img src="https://img.shields.io/github/v/release/cyuni1996/chatgpt-watch?style=flat-square&amp;color=b59ad9" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/Wear_OS-Android_11%2B-8b74a8?style=flat-square" alt="Android 11+ watch" />
+  <img src="https://img.shields.io/badge/Host-Windows-8b74a8?style=flat-square" alt="Windows host" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Code-MIT-8b74a8?style=flat-square" alt="MIT code license" /></a>
+</p>
 
-This is an independent community project, unaffiliated with OpenAI, ChatGPT, Codex, or watch manufacturers. The public watch application is named **WatchChat**. The repository name describes its intended use.
+<p align="center">
+  <a href="#demo">Demo</a> · <a href="#features">Features</a> · <a href="#getting-started">Get started</a> · <a href="#controls">Controls</a> · <a href="#faq">FAQ</a> · <a href="README.md">中文</a>
+</p>
 
-## Watch it, then ask AI to install
+## Demo
 
 https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
-[Full real-watch video](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4) · [Offline showcase and copyable install request](docs/demo.html) · [Signed APK](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0)
+<p align="center">
+  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><b>Download APK</b></a> ·
+  <a href="AI_INSTALL.en.md"><b>Install with AI</b></a> ·
+  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">Offline demo</a>
+</p>
 
-Recorded on a real watch with fictional chats, model entries and usage values; no private conversations are shown.
-
-Send this to a terminal-capable assistant on your computer, following the [AI installation runbook](AI_INSTALL.en.md):
-
-> Please install https://github.com/cyuni1996/chatgpt-watch . Read AI_INSTALL.en.md first, prefer the signed Release APK and verify SHA-256. Preserve existing applications and drafts. Verify by reading history, and tell me when I need to operate the watch.
-
-New users do not need JDK or Android Studio. `python tools/setup_watch.py` provides prerequisite checks, verified downloads, installation, startup, pairing and read-only verification. Unlocking, wireless-debugging authorization and comparing codes still need the user's participation.
+<sub>53-second real-watch recording with fictional chats, model entries and usage values.</sub>
 
 ## Features
 
-- **Shared conversations:** the desktop is the source of chat history. Watch messages continue the same desktop conversation instead of creating a separate inference runtime.
-- **History and projects:** search, pin, rename, archive/restore, open on desktop, and keep separate drafts for each computer and chat.
-- **Input and reading:** keyboard input, review-before-send speech recognition, text-to-speech, copy/quote actions, and older-message pagination.
-- **Response controls:** interrupt the current response and allow, reject, or answer supported desktop requests from the watch.
-- **Models and usage:** a compact model/reasoning selector below the composer; display the usage limits and reset times reported by the desktop account. Normal account charges and limits still apply.
-- **Round-screen UI:** continuous crown scrolling, interactive swipe-back, boundary feedback, optional haptics, font and background preferences.
-- **Connection modes:** discover a computer on the LAN, or optionally use your own fixed domain through a Cloudflare named tunnel.
-
-Source version: **0.13.0 (19)**. Public application ID: `org.watchchat.app`. It is separate from private builds using another application ID; their signing keys, saved connections, and drafts are not migrated. The watch UI is currently primarily Chinese. Both Chinese and English documentation are included; full English UI localization is not implemented.
-
-## Requirements and compatibility
-
-| Component | Requirement |
+| Feature | What it does |
 | --- | --- |
-| Watch | Wear OS or a compatible Android watch capable of installing APKs, Android 11 / API 30+, and network access. Manufacturer restrictions may apply. |
-| Computer | Windows 10/11, a running and signed-in Codex desktop application, Python 3.11+, Node.js 20+. The model catalog also requires the `codex` command on PATH. |
-| Installation | Prebuilt signed APK and Android Platform Tools (ADB); no JDK/Android Studio required. |
-| Source build, optional | JDK 17 or 21, Android SDK Platform 35 and Platform Tools. The Gradle Wrapper is included. |
-| LAN | Devices must be mutually reachable; allow the companion's TCP 8766 and mDNS UDP 5353 on your trusted local network. |
-| Internet mode, optional | Your own domain with Cloudflare-managed DNS and a configured `cloudflared` named tunnel. |
+| Shared conversations | Continue the same chat on watch and computer, with the latest messages. |
+| Voice and reading | Keyboard input, reviewed speech recognition, reply playback, copy and quote. |
+| Stop and requests | Interrupt a response and answer supported approvals or questions. |
+| Chat history | Browse by project, search, pin, rename, archive and restore. |
+| Models and usage | Quickly select a model/reasoning effort and view account usage. |
+| Watch interaction | Crown scrolling, interactive back navigation, font/haptic settings and a silver-violet character theme. |
 
-**The computer, Codex desktop, and companion must remain running.** Locking the desktop is supported; sleep, shutdown, desktop exit, or lost connectivity prevents use. Startup is manual in this version. No system service or login startup entry is installed.
+Discover and pair on the LAN, or optionally use your own fixed domain and tunnel for Internet access.
 
-Desktop integration uses the application's local App Tools pipe and client coordination protocol. **These are not stable public APIs.** The adapter was derived from desktop version `26.1027.6604.0`; other versions can be incompatible. History, interruption, and approval support depend on the interfaces actually exposed by the installed desktop. A successful build does not establish compatibility with every Codex version.
+## Getting started
 
-## Installation
+**Requirements:** a compatible Android 11 / API 30+ watch; a Windows computer with signed-in Codex desktop, Python 3.11+ and Node.js 20+. ADB is needed to install the APK. The prebuilt release does not require Android Studio or JDK.
 
-### 1. Clone and prepare the companion
+### Recommended: install with AI
 
-Run in PowerShell. Prefer a short, local path rather than a network drive.
-
-```powershell
-git clone https://github.com/cyuni1996/chatgpt-watch.git
-cd chatgpt-watch
-python -m pip install -r bridge/requirements.txt
-node --version
-codex --version
-```
-
-If you use a Python virtual environment, activate it before installation and before starting the companion. Node transport scripts use built-in modules; there is no npm installation step.
-
-### 2. Configure a real caller chat
-
-The first launch needs an **existing local Codex chat ID** as the desktop tool caller context. Do not invent an ID or publish yours.
-
-- When an agent starts `tools/start-companion.ps1` from a Codex chat whose environment supplies `CODEX_THREAD_ID`, the launcher saves it automatically.
-- For a manual launch, replace `YOUR_EXISTING_CHAT_UUID` below with a real local chat ID. How to obtain it depends on the desktop version; the agent in that chat may be able to read its own session context.
-
-```powershell
-python tools/computer_runtime.py --caller-thread-id YOUR_EXISTING_CHAT_UUID --name "My PC"
-```
-
-The value is stored only in ignored `.local/computers/<machine-key>/`. It provides a caller context; the selected watch chat continues to use its own conversation ID.
-
-### 3. Build and install the watch APK
-
-Install Android Studio/SDK and set `ANDROID_HOME`, or create a private `local.properties` with `sdk.dir`. Never commit that file.
-
-```powershell
-$env:JAVA_HOME = "C:\path\to\jdk"
-$env:ANDROID_HOME = "C:\path\to\Android\Sdk"
-.\gradlew.bat :app:assembleDebug
-```
-
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. Enable developer options and wireless debugging on the watch, then use its current pairing and debugging addresses:
-
-Dependencies use Google and Maven Central by default. If those hosts are unreachable from your network, append `-PuseRepositoryMirror=true` to explicitly opt into the Aliyun mirrors, including Robolectric downloads. TLS validation remains enabled.
-
-```powershell
-adb pair WATCH_IP:PAIRING_PORT
-adb connect WATCH_IP:DEBUG_PORT
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-Enter the watch's current pairing code when prompted. Pairing and debugging ports are usually different. ADB is needed for installation/updates, not daily app communication. Debug signing uses a key generated locally by your Android tooling. To update in place, preserve both the application ID and signing key. Uninstalling erases the watch's local settings and drafts.
-
-For distribution, run `.\gradlew.bat :app:assembleRelease`. The release APK is **unsigned** by default. Sign it using your own private key through Android Studio's Generate Signed App Bundle / APK workflow or `apksigner`. Signing keys are not included in the repository. A prebuilt signed APK is available separately in the [GitHub Release](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0). See [Android's build and signing instructions](https://developer.android.com/build/building-cmdline).
-
-### 4. Start and pair over LAN
-
-1. Open and sign in to Codex desktop; keep the caller chat from step 2 available.
-2. Double-click `Start Companion.cmd`, or run the startup command below. The companion remains in the background after the launcher window closes.
-3. Run `python tools/manage_connections.py pair`, or double-click `开启电脑配对.cmd`, to open a three-minute pairing window.
-4. On the watch, open **设置 → 电脑连接 → 局域网扫描** (Settings → Computer connection → LAN scan).
-5. Select the computer and compare the code on both devices. Enter `y` on the computer only if they match.
-6. Reuse the saved computer afterward. If its LAN address changes, scan it again to update the address without replacing its chat state.
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/start-companion.ps1
-# Stop this companion without closing Codex desktop
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
-```
-
-LAN transport uses HTTPS with certificate pinning, on TCP 8766 by default. Restrict access to your trusted LAN; do not forward this port directly to the Internet.
-
-## Navigation
-
-| Control | Action |
-| --- | --- |
-| Top-left menu, tap only | Chat history. Horizontal swipes do not open it. |
-| Center title | Details for the current chat, including project/computer information and chat management. |
-| Top-right gear | Application settings. |
-| Thin row below the composer | Select model and reasoning effort. Saving affects the next send; Back cancels unsaved choices. |
-| Send button during a response | Becomes the Stop button. |
-| Swipe down on the chat header | Account usage. Vertical gestures inside messages still scroll the chat. |
-| Horizontal swipe / Back | Return one level while preserving drafts and page position. |
-| Crown / double-tap messages / long-press a message | Scroll / jump to latest / message actions. |
-
-Pending requests open automatically and can be reopened from chat details. Requests already handled on the desktop are not executed again. Physical button support varies by device; system power/home buttons are not intercepted. Polling, recording, and speech stop when the app leaves the foreground. This does not interrupt work already submitted to the computer.
-
-## Optional public connection
-
-See [English installation details](docs/INSTALL.en.md#public-connection) or [中文安装说明](docs/INSTALL.zh-CN.md#公网连接). No deployed domain, tunnel, or tunnel credentials are provided by this repository.
-
-## Development
-
-```mermaid
-flowchart LR
-    W[Wear OS watch] <-->|LAN HTTPS or fixed-domain tunnel| B[Python companion]
-    B <--> N[Node local-pipe adapters]
-    N <--> C[Running Codex desktop]
-    B <--> S[Windows local speech]
-```
+Copy this request to an assistant with terminal access on your computer:
 
 ```text
-app/        Native Kotlin/Android watch UI and tests
-bridge/     Python HTTPS companion, Windows speech, Node desktop adapters and tests
-tools/      Start/stop, pairing, tunnel configuration, isolated fixtures and public-tree checks
-docs/       Bilingual setup, privacy, artwork and maintenance notes
-gradle/     Wrapper and version catalog
+Please install https://github.com/cyuni1996/chatgpt-watch .
+Read AI_INSTALL.en.md first. Prefer the signed Release APK and verify SHA-256.
+Preserve existing apps, pairing and drafts; verify by reading history.
+Tell me when I must unlock the watch, enable wireless debugging or compare codes.
 ```
 
-```powershell
-python -m unittest discover -s bridge -p "test_*.py"
-python -m unittest discover -s tools -p "test_*.py"
-node --test bridge/control_state.test.mjs bridge/control_transport.test.mjs
-.\gradlew.bat :app:testDebugUnitTest :app:lint :app:assembleDebug :app:assembleRelease
-python tools/check_public_tree.py --tracked
-```
+The assistant follows the [installation runbook](AI_INSTALL.en.md) to check prerequisites, install and start the companion. You still unlock the watch and compare pairing codes.
 
-These regressions use synthetic data and isolated services. They do not send prompts to real chats. Hardware automation requires a separately authorized ADB connection and a debuggable APK; it is not run by the commands above.
+### Manual installation and other options
 
-## Troubleshooting and limitations
+- **Manual setup:** [download, install and pair over LAN](docs/INSTALL.en.md).
+- **Internet access:** [fixed domain and Cloudflare Tunnel](docs/INSTALL.en.md#public-connection).
+- **Source changes:** [build instructions](docs/INSTALL.en.md#source-build) and [development guide](docs/DEVELOPMENT.md).
 
-- **No LAN computer:** check the companion, network isolation, firewall and mDNS. Discovery runs briefly while its page is in the foreground.
-- **Paired, but no history:** check Codex desktop, the real caller chat ID, and protocol compatibility. Local logs are under `.local/computers/`; redact them before sharing.
-- **No models:** check that `codex` is on PATH and signed in. The model catalog uses a read-only app-server request without starting an inference chat.
-- **Speech fails:** allow the watch microphone and install the required Windows recognition/TTS language components. Speech uses Windows `System.Speech`, not a separately configured paid speech API.
-- **Public mode fails:** check DNS and both running processes: tunnel and companion. Web-login interception is not supported by the current watch client.
-- Attachment upload, full code-diff review, external web authentication, workspace management, and complex forms still require a computer.
-- Existing account permissions and approval policies remain effective. A watch approval answers the original request rather than changing global policy.
+Keep the computer, Codex and companion running. Run `Start Companion.cmd` after a reboot; daily chat does not require ADB.
 
-## Privacy and license
+## Controls
 
-Runtime identities, tokens, private keys, chat caches, real screenshots, recordings, and personal device details are excluded. They are generated locally when the app is used. **An ignore rule cannot remove secrets already committed.** Run the public-tree check and review staged files before publishing. See [Security and privacy](SECURITY.md).
+| Entry | Action |
+| --- | --- |
+| Top-left menu | Tap to open chat history. |
+| Center title | Chat details, rename, pin and archive. |
+| Top-right gear | Application settings. |
+| Thin row below the composer | Model/reasoning selection for the next send. |
+| Send button during a response | Becomes Stop. |
+| Swipe down on the header | Account usage. |
+| Crown / horizontal swipe | Scroll / go back one level. |
+| Long-press / double-tap messages | Message actions / jump to latest. |
 
-Source code is [MIT licensed](LICENSE). The maintainer has confirmed permission to redistribute the included dragon-character runtime artwork; see [artwork terms](docs/ASSETS.md). The code's MIT license does not automatically apply to that artwork. Dependencies and trademarks retain their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
+## FAQ
 
-Detailed installation: [English](docs/INSTALL.en.md) · [中文](docs/INSTALL.zh-CN.md).
+<details>
+<summary>Does the computer need to stay on?</summary>
 
-## Optional support · Buy the author a cappuccino ☕
+Yes. The computer, Codex and companion must remain running. Locking is supported; sleep and shutdown are not.
 
-If this project makes your watch a little more useful, you're welcome to buy the author a cappuccino.
+</details>
 
-Tips are entirely voluntary, independent of access to the project's features, and do not include any additional service commitment. Thank you for using the app, sharing feedback, and supporting it in your own way.
+<details>
+<summary>Why is discovery or history unavailable?</summary>
 
-<img src="docs/media/support.png" width="600" alt="Optional support QR codes for Alipay and WeChat Pay" />
+Check mutual network reachability, the running companion, firewall and mDNS. If pairing works but history does not, check the real caller chat and desktop protocol compatibility. See [setup and diagnostics](docs/INSTALL.en.md).
+
+</details>
+
+<details>
+<summary>Why can't I update an existing installation?</summary>
+
+In-place updates require the same application ID and signing key. Check the APK source before doing anything destructive. The public ID is `org.watchchat.app`, separate from private builds with another ID.
+
+</details>
+
+<details>
+<summary>What are the language and feature limits?</summary>
+
+The UI is currently primarily Chinese; documentation is bilingual. Full attachments, code-diff review and external web login still need a computer. Desktop interfaces can change; models and usage depend on your account.
+
+</details>
+
+## Notice
+
+An unofficial community project, unaffiliated with OpenAI or device manufacturers. Provided as-is, without a guarantee of compatibility with every device or future desktop version.
+
+Code is [MIT licensed](LICENSE). See the separate [artwork terms](docs/ASSETS.md), [third-party notices](THIRD_PARTY_NOTICES.md) and [security notes](SECURITY.md). [Issues](https://github.com/cyuni1996/chatgpt-watch/issues) and [contributions](CONTRIBUTING.md) are welcome.
+
+## Support the author
+
+If this project makes your watch a little more useful, you're welcome to buy the author a cappuccino ☕. Thank you for using it, sharing feedback and supporting it in your own way.
+
+<details>
+<summary>Show optional support codes (Alipay / WeChat Pay)</summary>
+
+Tips are entirely voluntary, independent of feature access, and do not include any additional service commitment.
+
+<img src="docs/media/support.png" width="480" alt="Optional support QR codes for Alipay and WeChat Pay" />
+
+</details>
