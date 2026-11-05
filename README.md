@@ -8,6 +8,20 @@
 
 这是社区项目，与 OpenAI、ChatGPT、Codex 或手表厂商没有官方隶属关系。仓库名用于说明用途；手表上的公开版应用名为 **WatchChat**。
 
+## 看效果，交给 AI 安装
+
+[![53秒实机演示：聊天、历史、模型、停止与确认](docs/media/demo-poster.jpg)](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4)
+
+[观看完整实机视频](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4) · [离线演示与复制安装提示](docs/demo.html) · [下载签名 APK](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0)
+
+视频使用真实手表录屏，聊天、模型和额度均为虚构演示数据，不展示真实私人聊天。
+
+把这句话发给电脑上有终端权限的 AI，即可按 [AI 安装指南](AI_INSTALL.md)开始：
+
+> 请帮我安装 https://github.com/cyuni1996/chatgpt-watch 。先读 AI_INSTALL.md，优先使用 Release 签名 APK 并校验 SHA-256。保留已有应用与草稿，用读取历史验证连接；需要我操作手表时再提示我。
+
+新用户不必先安装 JDK 或 Android Studio。统一入口为 `python tools/setup_watch.py`，支持环境检查、下载校验、安装、启动、配对和只读验证。首次解锁、无线调试授权与两端核对码仍需用户操作。
+
 ## 能做什么
 
 - **同一段聊天，两端继续**：读取电脑原有聊天；手表发送的内容进入同一会话，不另建一套聊天历史。
@@ -26,7 +40,8 @@
 | --- | --- |
 | 手表 | 可安装 Android APK 的 Wear OS／兼容设备，Android 11 / API 30 及以上；有网络连接。实际兼容性取决于厂商系统。|
 | 电脑 | Windows 10 / 11，已打开并登录 Codex 桌面应用，Python 3.11+、Node.js 20+；模型目录还需要可运行的 `codex` 命令。|
-| 构建 | JDK 17 或 21、Android SDK Platform 35、Platform Tools；Gradle Wrapper 已包含。|
+| 安装 | 预编译签名 APK 与 Android Platform Tools（ADB）；不需要 JDK／Android Studio。|
+| 源码构建（可选） | JDK 17 或 21、Android SDK Platform 35、Platform Tools；Gradle Wrapper 已包含。|
 | 局域网 | 电脑与手表能互访，防火墙允许连接服务 TCP 8766 和 mDNS UDP 5353。|
 | 公网（可选） | 自有域名、Cloudflare 管理的 DNS、`cloudflared` 命名隧道。|
 
@@ -85,7 +100,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 配对端口与调试端口通常不同；在提示时输入手表当次配对码。ADB 仅用于安装／更新，日常连接不依赖它。调试包由本机自动生成的调试密钥签名。以后覆盖更新必须保持应用标识与签名一致；不要随意卸载，否则会丢失手表本地连接与草稿。
 
-发布构建执行 `.\gradlew.bat :app:assembleRelease`，默认输出**未签名** APK；请通过 Android Studio 的 Generate Signed App Bundle / APK 或 `apksigner` 使用自己的私有密钥签名。仓库不提供签名密钥或可直接安装的正式发布包。见 [Android 官方构建与签名说明](https://developer.android.com/build/building-cmdline)。
+发布构建执行 `.\gradlew.bat :app:assembleRelease`，默认输出**未签名** APK；请通过 Android Studio 的 Generate Signed App Bundle / APK 或 `apksigner` 使用自己的私有密钥签名。仓库不含签名密钥；已签名预编译包单独发布在 [GitHub Release](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0)。见 [Android 官方构建与签名说明](https://developer.android.com/build/building-cmdline)。
 
 ### 4. 启动、扫描与配对
 

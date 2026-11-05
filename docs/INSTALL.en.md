@@ -2,6 +2,8 @@
 
 [中文](INSTALL.zh-CN.md) · [Project overview](../README.en.md)
 
+**Recommended: use the [AI installation runbook](../AI_INSTALL.en.md).** The prebuilt release is already signed; installing it requires ADB, not an Android source-build toolchain. Full manual/developer instructions remain below.
+
 Complete the README's companion dependencies, real caller chat configuration, watch build/installation, and LAN pairing first. Verify LAN history reading before setting up Internet access. The companion primarily supports Windows; equivalent speech and desktop integration are not implemented for other operating systems.
 
 ## Preflight

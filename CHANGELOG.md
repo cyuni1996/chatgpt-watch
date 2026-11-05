@@ -1,5 +1,14 @@
 # Changelog / 更新记录
 
+## Installation and showcase update
+
+- Copyable Chinese/English AI installation runbooks and one setup entry point.
+- Prebuilt APK download with SHA-256 verification; installation preserves data and never retries by uninstalling.
+- Dedicated signing identity for public release APKs; signing secrets remain outside the repository.
+- 53-second real-watch showcase using fictional data, plus a self-contained offline HTML player with installation prompts.
+- Demo fixture accepts only synthetic controls and rejects chat sending, desktop navigation and other task operations.
+- Watch recording restored the original application, connection and 60-second screen timeout, and removed its temporary app/port mapping.
+
 ## 0.13.0 — public source snapshot
 
 - Shared desktop/watch conversations, per-chat drafts, project/history management, response interruption and supported approvals.

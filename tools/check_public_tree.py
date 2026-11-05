@@ -33,11 +33,12 @@ def findings(path, data, denied=()):
     hits = []
     if any(part in PRIVATE_PARTS for part in p.parts) or p.name in PRIVATE_NAMES or p.suffix.lower() in PRIVATE_SUFFIXES or p.name.startswith('.env'):
         hits.append(('private-file', 0))
-    # Only the official wrapper JAR and three reviewed runtime assets are binary inputs.
+    # Only the wrapper, runtime artwork and explicitly reviewed showcase poster are binary inputs.
     binary_allowed = path == 'gradle/wrapper/gradle-wrapper.jar' or path in {
         'app/src/main/res/drawable-nodpi/dragon_chat.webp',
         'app/src/main/res/drawable-nodpi/dragon_drawer.webp',
         'app/src/main/res/drawable-nodpi/dragon_portrait.png',
+        'docs/media/demo-poster.jpg',
     }
     if b'\0' in data:
         if not binary_allowed:

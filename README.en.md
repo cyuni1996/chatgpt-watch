@@ -8,6 +8,20 @@ Continue your computer's Codex chats from a Wear OS watch: read synchronized mes
 
 This is an independent community project, unaffiliated with OpenAI, ChatGPT, Codex, or watch manufacturers. The public watch application is named **WatchChat**. The repository name describes its intended use.
 
+## Watch it, then ask AI to install
+
+[![53-second real-watch showcase: chat, history, models, stop and confirmations](docs/media/demo-poster.jpg)](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4)
+
+[Full real-watch video](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4) · [Offline showcase and copyable install request](docs/demo.html) · [Signed APK](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0)
+
+Recorded on a real watch with fictional chats, model entries and usage values; no private conversations are shown.
+
+Send this to a terminal-capable assistant on your computer, following the [AI installation runbook](AI_INSTALL.en.md):
+
+> Please install https://github.com/cyuni1996/chatgpt-watch . Read AI_INSTALL.en.md first, prefer the signed Release APK and verify SHA-256. Preserve existing applications and drafts. Verify by reading history, and tell me when I need to operate the watch.
+
+New users do not need JDK or Android Studio. `python tools/setup_watch.py` provides prerequisite checks, verified downloads, installation, startup, pairing and read-only verification. Unlocking, wireless-debugging authorization and comparing codes still need the user's participation.
+
 ## Features
 
 - **Shared conversations:** the desktop is the source of chat history. Watch messages continue the same desktop conversation instead of creating a separate inference runtime.
@@ -26,7 +40,8 @@ Source version: **0.13.0 (19)**. Public application ID: `org.watchchat.app`. It 
 | --- | --- |
 | Watch | Wear OS or a compatible Android watch capable of installing APKs, Android 11 / API 30+, and network access. Manufacturer restrictions may apply. |
 | Computer | Windows 10/11, a running and signed-in Codex desktop application, Python 3.11+, Node.js 20+. The model catalog also requires the `codex` command on PATH. |
-| Build tools | JDK 17 or 21, Android SDK Platform 35 and Platform Tools. The Gradle Wrapper is included. |
+| Installation | Prebuilt signed APK and Android Platform Tools (ADB); no JDK/Android Studio required. |
+| Source build, optional | JDK 17 or 21, Android SDK Platform 35 and Platform Tools. The Gradle Wrapper is included. |
 | LAN | Devices must be mutually reachable; allow the companion's TCP 8766 and mDNS UDP 5353 on your trusted local network. |
 | Internet mode, optional | Your own domain with Cloudflare-managed DNS and a configured `cloudflared` named tunnel. |
 
@@ -85,7 +100,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Enter the watch's current pairing code when prompted. Pairing and debugging ports are usually different. ADB is needed for installation/updates, not daily app communication. Debug signing uses a key generated locally by your Android tooling. To update in place, preserve both the application ID and signing key. Uninstalling erases the watch's local settings and drafts.
 
-For distribution, run `.\gradlew.bat :app:assembleRelease`. The release APK is **unsigned** by default. Sign it using your own private key through Android Studio's Generate Signed App Bundle / APK workflow or `apksigner`. No signing key or ready-to-install official release is included. See [Android's build and signing instructions](https://developer.android.com/build/building-cmdline).
+For distribution, run `.\gradlew.bat :app:assembleRelease`. The release APK is **unsigned** by default. Sign it using your own private key through Android Studio's Generate Signed App Bundle / APK workflow or `apksigner`. Signing keys are not included in the repository. A prebuilt signed APK is available separately in the [GitHub Release](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0). See [Android's build and signing instructions](https://developer.android.com/build/building-cmdline).
 
 ### 4. Start and pair over LAN
 
