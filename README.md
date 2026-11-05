@@ -183,3 +183,11 @@ python tools/check_public_tree.py --tracked
 代码采用 [MIT](LICENSE)。龙娘运行素材由维护者确认获准再分发，授权范围单独说明于 [素材说明](docs/ASSETS.md)，不自动套用代码的 MIT 许可。第三方依赖和商标权利仍归原权利人，见 [第三方说明](THIRD_PARTY_NOTICES.md)。
 
 详细安装文档：[中文](docs/INSTALL.zh-CN.md) · [English](docs/INSTALL.en.md)。
+
+## 自愿赞赏 · 请作者喝一杯卡布奇诺 ☕
+
+如果这个项目让你的手表更顺手，欢迎自愿请作者喝一杯卡布奇诺。
+
+赞赏完全随心，与功能使用无关，也不附带额外服务承诺。感谢你的使用、反馈和每一份支持。
+
+<img src="docs/media/support.png" width="600" alt="自愿赞赏收款码：支付宝与微信" />

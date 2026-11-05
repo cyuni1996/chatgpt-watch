@@ -18,4 +18,10 @@ The maintainer has confirmed redistribution permission for the three runtime ass
 
 The poster, embedded offline showcase and release video were recorded on an authorized physical watch using a separate app and isolated fictional data. Chat text, computer labels, models and usage values are synthetic. Raw recordings and device information are not published. Character artwork remains subject to the terms below even when visible within the video or screenshots.
 
+## 自愿赞赏图片 / Optional support image
+
+`docs/media/support.png` 由维护者主动提供并明确要求用于公开的自愿赞赏展示，按原图保留收款码，不属于代码 MIT 许可的素材。收款资料是本次有意公开的内容；该授权不包含其他个人资料。图片只用于可选支持入口，未加入应用启动或聊天流程。
+
+The maintainer explicitly supplied and authorized this payment QR image for public, voluntary support. It is preserved without altering the codes and is not covered by the code's MIT license. This intentional publication does not authorize disclosure of other personal information. The image is confined to an optional documentation section, outside application startup and chat flows.
+
 **The MIT license applies to project code and documentation, not to the character bitmap artwork.** The artwork is included for building and displaying this application. Contact the maintainer to establish the original permission's scope before extracting, commercially using, adapting, or sublicensing the character artwork. No ownership of the original character design or third-party trademarks is asserted here.

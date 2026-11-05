@@ -183,3 +183,11 @@ Runtime identities, tokens, private keys, chat caches, real screenshots, recordi
 Source code is [MIT licensed](LICENSE). The maintainer has confirmed permission to redistribute the included dragon-character runtime artwork; see [artwork terms](docs/ASSETS.md). The code's MIT license does not automatically apply to that artwork. Dependencies and trademarks retain their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 Detailed installation: [English](docs/INSTALL.en.md) · [中文](docs/INSTALL.zh-CN.md).
+
+## Optional support · Buy the author a cappuccino ☕
+
+If this project makes your watch a little more useful, you're welcome to buy the author a cappuccino.
+
+Tips are entirely voluntary, independent of access to the project's features, and do not include any additional service commitment. Thank you for using the app, sharing feedback, and supporting it in your own way.
+
+<img src="docs/media/support.png" width="600" alt="Optional support QR codes for Alipay and WeChat Pay" />
