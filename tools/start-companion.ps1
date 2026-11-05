@@ -3,11 +3,12 @@ $project = Split-Path -Parent $PSScriptRoot
 $python = (Get-Command python).Source
 $computer = (& $python (Join-Path $PSScriptRoot 'computer_runtime.py') | ConvertFrom-Json)
 if ($LASTEXITCODE -ne 0) { throw '无法读取本机连接配置。' }
+$project = $computer.projectDirectory
 if (-not $computer.callerThreadId) { throw '请先配置真实聊天编号：python tools/computer_runtime.py --caller-thread-id YOUR_EXISTING_CHAT_UUID，或从提供 CODEX_THREAD_ID 的 Codex 对话内启动。' }
 $runtimeDir = $computer.directory
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 $pidFile = Join-Path $runtimeDir 'server.pid'
-$scriptPath = Join-Path $project 'bridge/server.py'
+$scriptPath = Join-Path (Join-Path $project 'bridge') 'server.py'
 if (Test-Path -LiteralPath $pidFile) {
     $serverPid = [int](Get-Content -LiteralPath $pidFile)
     $existing = Get-CimInstance Win32_Process -Filter "ProcessId=$serverPid" -ErrorAction SilentlyContinue

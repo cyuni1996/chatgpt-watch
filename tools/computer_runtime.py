@@ -38,13 +38,13 @@ if __name__=='__main__':
     parser.add_argument('--caller-thread-id',help='A real local Codex chat ID used as the bridge caller; kept only in ignored local configuration')
     parser.add_argument('--layout',action='store_true')
     args=parser.parse_args()
-    if args.layout:result={'directory':str(runtime_directory())}
+    if args.layout:result={'directory':str(runtime_directory()),'projectDirectory':str(ROOT)}
     else:
         caller=args.caller_thread_id or os.environ.get('CODEX_THREAD_ID')
         if caller:
             try: uuid.UUID(caller)
             except ValueError: parser.error('--caller-thread-id must be an existing chat UUID')
         directory,config,_,_=prepare_runtime(name=args.name,caller=caller)
-        result={'directory':str(directory),'computerId':config['computerId'],'computerName':config['computerName'],
+        result={'directory':str(directory),'projectDirectory':str(ROOT),'computerId':config['computerId'],'computerName':config['computerName'],
                 'port':config['port'],'callerThreadId':config.get('callerThreadId')}
     print(json.dumps(result))

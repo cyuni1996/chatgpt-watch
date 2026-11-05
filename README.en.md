@@ -10,7 +10,7 @@ This is an independent community project, unaffiliated with OpenAI, ChatGPT, Cod
 
 ## Watch it, then ask AI to install
 
-[![53-second real-watch showcase: chat, history, models, stop and confirmations](docs/media/demo-poster.jpg)](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4)
+https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 [Full real-watch video](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4) · [Offline showcase and copyable install request](docs/demo.html) · [Signed APK](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0)
 

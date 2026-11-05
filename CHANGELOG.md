@@ -6,6 +6,8 @@
 - Prebuilt APK download with SHA-256 verification; installation preserves data and never retries by uninstalling.
 - Dedicated signing identity for public release APKs; signing secrets remain outside the repository.
 - 53-second real-watch showcase using fictional data, plus a self-contained offline HTML player with installation prompts.
+- The Chinese/English README embeds GitHub's native video attachment player, rather than requiring a download.
+- Companion startup/stop uses a canonical project path, including mapped network drives, and refuses to stop an unrelated PID.
 - Demo fixture accepts only synthetic controls and rejects chat sending, desktop navigation and other task operations.
 - Watch recording restored the original application, connection and 60-second screen timeout, and removed its temporary app/port mapping.
 

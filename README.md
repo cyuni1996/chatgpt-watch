@@ -10,7 +10,7 @@
 
 ## 看效果，交给 AI 安装
 
-[![53秒实机演示：聊天、历史、模型、停止与确认](docs/media/demo-poster.jpg)](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4)
+https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 [观看完整实机视频](https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.mp4) · [离线演示与复制安装提示](docs/demo.html) · [下载签名 APK](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.0)
 
