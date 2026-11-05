@@ -40,6 +40,8 @@ def findings(path, data, denied=()):
         'app/src/main/res/drawable-nodpi/dragon_portrait.png',
         'docs/media/demo-poster.jpg',
         'docs/media/support.png',
+        'docs/media/support-cny.png',
+        'docs/media/support-crypto.png',
     }
     if b'\0' in data:
         if not binary_allowed:

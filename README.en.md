@@ -121,10 +121,29 @@ Code is [MIT licensed](LICENSE). See the separate [artwork terms](docs/ASSETS.md
 If this project makes your watch a little more useful, you're welcome to buy the author a cappuccino ☕. Thank you for using it, sharing feedback and supporting it in your own way.
 
 <details>
-<summary>Show optional support codes (Alipay / WeChat Pay)</summary>
+<summary>Alipay / WeChat Pay</summary>
 
-Tips are entirely voluntary, independent of feature access, and do not include any additional service commitment.
-
-<img src="docs/media/support.png" width="480" alt="Optional support QR codes for Alipay and WeChat Pay" />
+<a href="docs/media/support-cny.png"><img src="docs/media/support-cny.png" width="520" alt="Optional support QR codes for Alipay and WeChat Pay" /></a>
 
 </details>
+
+<details>
+<summary>Cryptocurrency (BTC / ETH / USDT)</summary>
+
+<a href="docs/media/support-crypto.png"><img src="docs/media/support-crypto.png" width="640" alt="Optional support QR codes for BTC, ETH and ERC20 USDT with network labels" /></a>
+
+**BTC · Bitcoin mainnet**
+
+```text
+bc1qyae989cu0mx0zx2je5xtpft09dm4fwplz3g09qnarf76y3jzz5ksdh8qcw
+```
+
+**ETH / USDT · Ethereum mainnet (USDT: ERC20)**
+
+```text
+0x18fe56573647a2b7a3230181460c47b3731dba8b
+```
+
+</details>
+
+<sub>Tips are entirely voluntary, independent of feature access, and do not include additional services. Click an image to view its original size.</sub>

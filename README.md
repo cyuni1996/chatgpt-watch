@@ -121,10 +121,29 @@ AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接�
 如果这个项目让你的手表更顺手，欢迎自愿请作者喝一杯卡布奇诺 ☕。感谢你的使用、反馈和每一份支持。
 
 <details>
-<summary>展开赞赏码（支付宝 / 微信）</summary>
+<summary>支付宝 / 微信投喂</summary>
 
-赞赏完全随心，与功能使用无关，也不附带额外服务承诺。
-
-<img src="docs/media/support.png" width="480" alt="自愿赞赏：支付宝与微信收款码" />
+<a href="docs/media/support-cny.png"><img src="docs/media/support-cny.png" width="520" alt="感谢投喂：支付宝与微信收款码" /></a>
 
 </details>
+
+<details>
+<summary>数字货币投喂（BTC / ETH / USDT）</summary>
+
+<a href="docs/media/support-crypto.png"><img src="docs/media/support-crypto.png" width="640" alt="感谢投喂：BTC、ETH 与 ERC20 USDT 收款码及网络说明" /></a>
+
+**BTC · Bitcoin 主网**
+
+```text
+bc1qyae989cu0mx0zx2je5xtpft09dm4fwplz3g09qnarf76y3jzz5ksdh8qcw
+```
+
+**ETH / USDT · Ethereum 主网（USDT：ERC20）**
+
+```text
+0x18fe56573647a2b7a3230181460c47b3731dba8b
+```
+
+</details>
+
+<sub>赞赏完全随心，与功能使用无关，也不附带额外服务承诺。点击图片可查看原图。</sub>
