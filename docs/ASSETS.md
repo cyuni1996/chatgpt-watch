@@ -2,7 +2,7 @@
 
 代码与文档使用 MIT；以下图片和视频不自动适用该许可：
 
-- `app/src/main/res/drawable-nodpi/dragon_*`：维护者确认有再分发授权的角色素材，随本应用提供。独立复用或改编前，请向维护者确认原授权范围。
+- `src/app/src/main/res/drawable-nodpi/dragon_*`：维护者确认有再分发授权的角色素材，随本应用提供。独立复用或改编前，请向维护者确认原授权范围。
 - 演示封面、内嵌视频及 Release 演示：使用真实手表录制，内容为虚构数据；其中的角色素材沿用上述范围。
 - `media/support-cny.png`、`media/support-crypto.png`：维护者主动提供的投喂图及图中公开收款地址，仅用于自愿赞赏入口。
 

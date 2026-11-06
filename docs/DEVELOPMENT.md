@@ -1,15 +1,15 @@
 # 开发指南 / Development
 
-[中文首页](../README.md) · [English overview](../README.en.md) · [贡献说明](../CONTRIBUTING.md)
+[中文首页](../README.md) · [English overview](README.en.md) · [贡献说明](CONTRIBUTING.md)
 
 ## 结构 / Structure
 
 ```text
-app/        Native Kotlin / Android UI and tests
-bridge/     Python HTTPS companion, Windows speech and Node desktop adapters
-tools/      Setup, pairing, isolated fixtures and checks
+src/app/    Native Kotlin / Android UI and tests
+src/bridge/ Python HTTPS companion, Windows speech and Node desktop adapters
+src/tools/ Companion scripts, isolated fixtures and checks
 docs/       Installation, offline showcase and artwork notes
-gradle/     Wrapper and version catalog
+packaging/ Gradle wrapper, install tooling and build outputs
 ```
 
 ```mermaid
@@ -29,11 +29,12 @@ The adapter uses version-dependent local App Tools/client coordination protocols
 Android 构建环境见[中文安装文档](INSTALL.zh-CN.md#源码构建)或 [English instructions](INSTALL.en.md#source-build)。
 
 ```powershell
-python -m pip install -r bridge/requirements.txt
-python -m unittest discover -s bridge -p "test_*.py"
-python -m unittest discover -s tools -p "test_*.py"
-node --test bridge/control_state.test.mjs bridge/control_transport.test.mjs
-.\gradlew.bat :app:testDebugUnitTest :app:lint :app:assembleDebug :app:assembleRelease
+python -m pip install -r src/bridge/requirements.txt
+python -m unittest discover -s src/bridge -p "test_*.py"
+python -m unittest discover -s src/tools -p "test_*.py"
+python -m unittest discover -s packaging -p "test_*.py"
+node --test src/bridge/control_state.test.mjs src/bridge/control_transport.test.mjs
+.\packaging\gradlew.bat -p packaging :app:testDebugUnitTest :app:lint :app:assembleDebug :app:assembleRelease
 ```
 
 回归使用虚构数据和隔离服务；设备自动化另需授权的 ADB 设备。真实聊天与审批不得用于自动化测试。
@@ -52,8 +53,8 @@ Before tagging, check both READMEs, both installation guides and the changelog a
 
 ```powershell
 git add .
-python tools/check_public_tree.py --tracked
-python tools/check_public_tree.py --history
+python src/tools/check_public_tree.py --tracked
+python src/tools/check_public_tree.py --history
 git diff --cached --check
 git diff --cached
 ```

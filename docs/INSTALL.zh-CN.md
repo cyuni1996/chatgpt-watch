@@ -2,11 +2,13 @@
 
 [English](INSTALL.en.md) · [返回项目首页](../README.md)
 
-**推荐：直接使用 [AI 安装指南](../AI_INSTALL.md)。** 发布包已经签名，安装到手表只需 ADB，无需源码构建环境。以下保留完整手动和开发安装步骤。
+**推荐：直接使用 [AI 安装指南](AI_INSTALL.md)。** 发布包已经签名，安装到手表只需 ADB，无需源码构建环境。以下保留完整手动和开发安装步骤。
 
 本文维护在 `main` 分支。发布标签下的文档是该版本发布时的快照。安装时，电脑端源码和签名 APK 要使用同一发布版本。 [最新版说明](https://github.com/cyuni1996/chatgpt-watch/blob/main/docs/INSTALL.zh-CN.md) · [最新正式发布](https://github.com/cyuni1996/chatgpt-watch/releases/latest)
 
 电脑端目前主要支持 Windows。已有安装请先阅读[升级步骤](#升级已安装的版本)。
+
+以下 PowerShell 命令从仓库根目录执行。示例会自动识别旧标签和当前目录布局。安装命令中的 `PATH_TO_VERIFIED_APK` 请替换为下载器输出的路径。
 
 ## 安装前检查
 
@@ -21,13 +23,14 @@ adb version
 
 ## 下载并安装
 
-使用签名 APK 时，先从 [GitHub Releases](https://github.com/cyuni1996/chatgpt-watch/releases) 选择版本，再克隆同一个发布标签。下面以 `v0.13.9` 为例：
+使用签名 APK 时，先从 [GitHub Releases](https://github.com/cyuni1996/chatgpt-watch/releases) 选择版本，再克隆同一个发布标签。下面以 `v0.13.10` 为例：
 
 ```powershell
-git clone --branch v0.13.9 https://github.com/cyuni1996/chatgpt-watch.git
+git clone --branch v0.13.10 https://github.com/cyuni1996/chatgpt-watch.git
 cd chatgpt-watch
-python tools/setup_watch.py deps
-python tools/setup_watch.py download
+$setup = if (Test-Path packaging/setup_watch.py) { "packaging/setup_watch.py" } else { "tools/setup_watch.py" }
+python $setup deps
+python $setup download
 ```
 
 下载器会校验 Release 的 SHA-256，并输出安装包路径。也可以在发布页手动下载 APK 和 `SHA256SUMS`。从开发分支拉取的源码如果没有同版本 Release，请走[源码构建](#源码构建)。手表开启无线调试后，用当次实际地址操作。无线调试的配对端口与连接端口通常不同，配对码按提示输入。
@@ -35,24 +38,26 @@ python tools/setup_watch.py download
 ```powershell
 adb pair WATCH_IP:PAIRING_PORT
 adb connect WATCH_IP:DEBUG_PORT
-python tools/setup_watch.py install --apk .local/downloads/v0.13.9/chatgpt-watch-0.13.9.apk
+python $setup install --apk "PATH_TO_VERIFIED_APK"
 ```
 
 已配对的手表可跳过 `adb pair`。多设备时为安装器加 `--serial`，ADB 不在 PATH 时加 `--adb`。默认应用标识为 `org.watchchat.app`。覆盖更新需保持标识与签名一致。安装失败时请保留已有安装及其数据。
 
 ## 升级已安装的版本
 
-1. 从[最新正式发布](https://github.com/cyuni1996/chatgpt-watch/releases/latest)下载签名 APK 并校验 SHA-256。应用标识和签名一致时，运行上面的安装命令即可覆盖更新并保留手表端数据。
-2. 从 **GitHub 发布的 v0.13.0 升级到 v0.13.9** 时，两个版本的签名不同。确认旧版来源后，先保存需要保留的草稿，再在手表的应用管理里手动卸载旧版。卸载会清除手表端设置、草稿和配对信息。安装新版后重新配对。遇到其他签名冲突时，先核对安装包来源。
+1. 从[最新正式发布](https://github.com/cyuni1996/chatgpt-watch/releases/latest)下载签名 APK 并校验 SHA-256。应用标识和签名一致时，运行上面的安装命令即可覆盖更新并保留手表端数据。v0.13.9 与 v0.13.10 使用同一签名。
+2. 从 **GitHub 发布的 v0.13.0 升级到 v0.13.10** 时，两个版本的签名不同。确认旧版来源后，先保存需要保留的草稿，再在手表的应用管理里手动卸载旧版。卸载会清除手表端设置、草稿和配对信息。安装新版后重新配对。遇到其他签名冲突时，先核对安装包来源。
 3. 在原电脑端目录停止旧连接服务，再将源码切换到与新版 APK 一致的标签。保留该目录的 `.local/`，这样电脑身份和缓存能继续使用。安装新版本依赖后运行 **Start Companion.cmd**。需要配对时，局域网按 **L**，外网按 **P**。
 
-例如，在原电脑端仓库目录更新到 `v0.13.9`：
+例如，在原电脑端仓库目录更新到 `v0.13.10`：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
+$stop = if (Test-Path src/tools/stop-companion.ps1) { "src/tools/stop-companion.ps1" } else { "tools/stop-companion.ps1" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stop
 git fetch origin --tags
-git switch --detach v0.13.9
-python tools/setup_watch.py deps
+git switch --detach v0.13.10
+$setup = if (Test-Path packaging/setup_watch.py) { "packaging/setup_watch.py" } else { "tools/setup_watch.py" }
+python $setup deps
 ```
 
 ## 调用聊天配置与服务生命周期
@@ -60,8 +65,7 @@ python tools/setup_watch.py deps
 桌面工具必须有真实调用会话：
 
 ```powershell
-python tools/computer_runtime.py --caller-thread-id YOUR_EXISTING_CHAT_UUID --name "My PC"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/start-companion.ps1
+python $setup start --caller-thread-id YOUR_EXISTING_CHAT_UUID --name "My PC"
 ```
 
 若从 Codex 内的工程上下文启动且提供 `CODEX_THREAD_ID`，可自动保存；手动填写时 UUID 格式检查只验证格式，不保证该聊天存在或可访问。编号无效会造成历史读取或创建失败。
@@ -71,7 +75,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/start-companion.ps
 停止本工程服务：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
+$stop = if (Test-Path src/tools/stop-companion.ps1) { "src/tools/stop-companion.ps1" } else { "tools/stop-companion.ps1" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stop
 ```
 
 服务运行期间连接启动一次即可，电脑重启后需再次启动。当前不配置托盘应用、计划任务或系统服务。停止后已提交的 Codex 任务可能继续运行；需要停止回复时请使用对应聊天的停止按钮。
@@ -98,25 +103,28 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
 ## 设备授权管理
 
 ```powershell
-python tools/manage_connections.py devices
-python tools/manage_connections.py revoke --device-id DEVICE_ID_FROM_LIST
+$manage = if (Test-Path src/tools/manage_connections.py) { "src/tools/manage_connections.py" } else { "tools/manage_connections.py" }
+python $manage devices
+python $manage revoke --device-id DEVICE_ID_FROM_LIST
 ```
 
 每台新配对手表使用独立令牌，服务端保存哈希。旧版兼容共享令牌另行保留：撤销某个新设备不等于撤销所有旧版凭据。怀疑凭据泄漏时先停服务，撤销设备并重新配置本机身份；不要把私有配置提交到 Git。
 
 ## 源码构建
 
-源码构建需要 JDK 17（也可用 JDK 21）、Android SDK Platform 35、Build Tools 34.0.0 和 Platform Tools。通过 Android Studio 的 SDK Manager 或 `sdkmanager` 安装这些组件并接受 SDK 许可。设置 `JAVA_HOME` 与 `ANDROID_HOME`（或本机 `local.properties` 中的 `sdk.dir`）。仓库自带 Gradle Wrapper，首次构建会下载 Gradle 和依赖。
+以下构建路径适用于当前目录布局。旧标签的构建路径见该标签的说明。
+
+源码构建需要 JDK 17（也可用 JDK 21）、Android SDK Platform 35、Build Tools 34.0.0 和 Platform Tools。通过 Android Studio 的 SDK Manager 或 `sdkmanager` 安装这些组件并接受 SDK 许可。设置 `JAVA_HOME` 与 `ANDROID_HOME`（或本机 `packaging/local.properties` 中的 `sdk.dir`）。仓库自带 Gradle Wrapper，首次构建会下载 Gradle 和依赖。
 
 ```powershell
-python tools/setup_watch.py doctor --target build
-python tools/setup_watch.py build
-python tools/setup_watch.py install
+python packaging/setup_watch.py doctor --target build
+python packaging/setup_watch.py build
+python packaging/setup_watch.py install
 ```
 
-网络无法访问默认仓库时，可明确使用 `build --mirror`。debug APK 使用本机调试签名，与 Release 签名不同；覆盖更新前核对已有签名。发布构建运行 `.\gradlew.bat :app:assembleRelease`，默认输出未签名包，需用自己的私钥签名并在仓库之外备份。详见 [Android 官方说明](https://developer.android.com/build/building-cmdline)。
+网络无法访问默认仓库时，可明确使用 `build --mirror`。debug APK 使用本机调试签名，与 Release 签名不同；覆盖更新前核对已有签名。发布构建运行 `.\packaging\gradlew.bat -p packaging :app:assembleRelease`，默认输出未签名包，需用自己的私钥签名并在仓库之外备份。详见 [Android 官方说明](https://developer.android.com/build/building-cmdline)。
 
-如果要沿用已有安装的自定义应用标识，在 Git 忽略的 `local.properties` 中设置 `watchchat.applicationId` 为原标识。已有安装确实使用了本机当前的调试密钥时，可再设置 `watchchat.signWithDebugKey=true`，让本机 Release 构建沿用该签名。构建配置和 `.local/` 下的连接资料均保留在本机。
+如果要沿用已有安装的自定义应用标识，在 Git 忽略的 `packaging/local.properties` 中设置 `watchchat.applicationId` 为原标识。已有安装确实使用了本机当前的调试密钥时，可再设置 `watchchat.signWithDebugKey=true`，让本机 Release 构建沿用该签名。构建配置和 `.local/` 下的连接资料均保留在本机。
 
 ## 更新与排查
 
@@ -126,4 +134,4 @@ python tools/setup_watch.py install
 - 同端口已有服务时只停止自己确认属于此工程的进程，不要终止 Codex 桌面或其他工程。
 - 真实桌面接口变化时，部分功能可能明确报不可用。不要将停止／确认回退为新发一条聊天指令。
 
-贡献前见 [CONTRIBUTING.md](../CONTRIBUTING.md)，公开检查见 [SECURITY.md](../SECURITY.md)。
+贡献前见 [CONTRIBUTING.md](CONTRIBUTING.md)，公开检查见 [SECURITY.md](SECURITY.md)。

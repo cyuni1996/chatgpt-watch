@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/src/main/res/drawable-nodpi/dragon_portrait.png" width="96" alt="WatchChat 图标" />
+  <img src="src/app/src/main/res/drawable-nodpi/dragon_portrait.png" width="96" alt="WatchChat 图标" />
 </p>
 
 <h1 align="center">WatchChat</h1>
@@ -10,11 +10,11 @@
   <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><img src="https://img.shields.io/github/v/release/cyuni1996/chatgpt-watch?style=flat-square&amp;color=b59ad9" alt="最新版本" /></a>
   <img src="https://img.shields.io/badge/Wear_OS-Android_11%2B-8b74a8?style=flat-square" alt="Android 11 及以上手表" />
   <img src="https://img.shields.io/badge/电脑端-Windows-8b74a8?style=flat-square" alt="Windows 电脑端" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/代码-MIT-8b74a8?style=flat-square" alt="代码 MIT 许可" /></a>
+  <a href="docs/LICENSE"><img src="https://img.shields.io/badge/代码-MIT-8b74a8?style=flat-square" alt="代码 MIT 许可" /></a>
 </p>
 
 <p align="center">
-  <a href="#演示">演示</a> · <a href="#功能">功能</a> · <a href="#开始使用">开始使用</a> · <a href="#操作速查">操作速查</a> · <a href="#常见问题">常见问题</a> · <a href="README.en.md">English</a>
+  <a href="#演示">演示</a> · <a href="#功能">功能</a> · <a href="#开始使用">开始使用</a> · <a href="#操作速查">操作速查</a> · <a href="#常见问题">常见问题</a> · <a href="docs/README.en.md">English</a>
 </p>
 
 ## 演示
@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 <p align="center">
   <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><b>下载签名 APK 和 SHA-256</b></a> ·
-  <a href="AI_INSTALL.md"><b>让 AI 帮我安装</b></a> ·
+  <a href="docs/AI_INSTALL.md"><b>让 AI 帮我安装</b></a> ·
   <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">v0.13.0 离线演示</a>
 </p>
 
@@ -46,7 +46,9 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 **运行条件：** Android 11 / API 30+ 的兼容手表；Windows 电脑上已登录 Codex，安装 Python 3.11+ 和 Node.js 20+。安装 APK 需要 ADB；使用发布包不需要 Android Studio 或 JDK。
 
-**从 GitHub 发布的 v0.13.0 升级到 v0.13.9**。这两个版本签名不同。确认安装来源并保存仍需要的本地草稿后，在手表上手动卸载旧版。卸载会清除手表端本地设置、草稿和配对信息。安装后重新配对电脑。 [升级步骤](docs/INSTALL.zh-CN.md#升级已安装的版本)
+**从 v0.13.9 升级到 v0.13.10** 可直接覆盖安装。请同时更新电脑端源码并重启连接服务。
+
+**从 GitHub 发布的 v0.13.0 升级到 v0.13.10**。这两个版本签名不同。确认安装来源并保存仍需要的本地草稿后，在手表上手动卸载旧版。卸载会清除手表端本地设置、草稿和配对信息。安装后重新配对电脑。 [升级步骤](docs/INSTALL.zh-CN.md#升级已安装的版本)
 
 ### 推荐：交给 AI 安装
 
@@ -54,12 +56,12 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 ```text
 请帮我安装 https://github.com/cyuni1996/chatgpt-watch 。
-先阅读 AI_INSTALL.md，优先下载与电脑端源码同版本的 Release 签名 APK 并校验 SHA-256。
+先阅读 docs/AI_INSTALL.md，优先下载与电脑端源码同版本的 Release 签名 APK 并校验 SHA-256。
 保留已有应用、配对和草稿，用读取历史验证连接。
 需要我解锁手表、开启无线调试或确认首次连接时，再提示我。
 ```
 
-AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接服务。首次局域网配对在手表上确认。
+AI 按 [安装指南](docs/AI_INSTALL.md)检查环境、安装应用并启动连接服务。首次局域网配对在手表上确认。
 
 ### 手动安装与其他方式
 
@@ -68,6 +70,14 @@ AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接�
 - **修改源码：** [构建说明](docs/INSTALL.zh-CN.md#源码构建)与[开发指南](docs/DEVELOPMENT.md)。
 
 日常使用时，保持电脑、Codex 和连接服务运行。电脑重启后运行 `Start Companion.cmd`。首次局域网配对按 **L**，已有 TCP 穿透的外网配对按 **P** 生成一次性配对码。手表启动时检查正式版本，更新通过 ADB 手动安装。
+
+停止电脑服务，在启动窗口按 **S**。按 **Q** 只关闭窗口。
+
+### 项目目录
+
+- [docs/](docs/) 存放安装指南、说明文档和演示素材。
+- [packaging/](packaging/) 存放构建和安装工具。APK 构建和下载结果统一放在 `packaging/build/`。
+- [src/](src/) 存放手表端、电脑连接服务和测试源码。
 
 ## 操作速查
 
@@ -101,7 +111,7 @@ AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接�
 <details>
 <summary>已有版本无法覆盖安装怎么办？</summary>
 
-覆盖更新需要相同的应用标识和签名。默认标识为 `org.watchchat.app`。从公开版 v0.13.0 升级到 v0.13.9 时，请按上面的换签名说明操作。遇到其他签名冲突时，先保留已有安装并核对来源。
+覆盖更新需要相同的应用标识和签名。默认标识为 `org.watchchat.app`。从公开版 v0.13.0 升级到 v0.13.10 时，请按上面的换签名说明操作。遇到其他签名冲突时，先保留已有安装并核对来源。
 
 </details>
 
@@ -116,7 +126,7 @@ AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接�
 
 非官方社区项目，与 OpenAI 及设备厂商无隶属关系。软件按原样提供，不保证适配所有设备或持续兼容桌面接口。
 
-代码采用 [MIT](LICENSE) 许可。美术素材、第三方组件和安全信息分别见[素材说明](docs/ASSETS.md)、[第三方说明](THIRD_PARTY_NOTICES.md)与[安全说明](SECURITY.md)。欢迎提交 [Issue](https://github.com/cyuni1996/chatgpt-watch/issues) 或[参与贡献](CONTRIBUTING.md)。
+代码采用 [MIT](docs/LICENSE) 许可。美术素材、第三方组件和安全信息分别见[素材说明](docs/ASSETS.md)、[第三方说明](docs/THIRD_PARTY_NOTICES.md)与[安全说明](docs/SECURITY.md)。欢迎提交 [Issue](https://github.com/cyuni1996/chatgpt-watch/issues) 或[参与贡献](docs/CONTRIBUTING.md)。
 
 ## 支持作者
 
