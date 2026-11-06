@@ -22,7 +22,7 @@
 https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 <p align="center">
-  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><b>Download APK</b></a> ·
+  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><b>Download signed APK and SHA-256</b></a> ·
   <a href="AI_INSTALL.en.md"><b>Install with AI</b></a> ·
   <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">Offline demo</a>
 </p>
@@ -45,6 +45,8 @@ Discover and pair on the LAN, or use an HTTPS address and a one-time pairing cod
 ## Getting started
 
 **Requirements:** a compatible Android 11 / API 30+ watch; a Windows computer with signed-in Codex desktop, Python 3.11+ and Node.js 20+. ADB is needed to install the APK. The prebuilt release does not require Android Studio or JDK.
+
+**Upgrading from v0.13.0 to v0.13.9.** The release signing key has changed. Manually uninstall the old version before installing the new one. This clears local watch settings and pairing information. Pair the watch with your computer again after installation. [v0.13.9 release notes](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.9)
 
 ### Recommended: install with AI
 
@@ -99,7 +101,7 @@ Check mutual network reachability, the running companion, firewall and mDNS. If 
 <details>
 <summary>Why can't I update an existing installation?</summary>
 
-In-place updates require the same application ID and signing key. The default ID is `org.watchchat.app`. To keep a custom ID for an existing installation, use the local setting in the same source checkout and sign with the original key.
+In-place updates require the same application ID and signing key. The default ID is `org.watchchat.app`. For the public v0.13.0 to v0.13.9 transition, follow the signing change instructions above. For other signing conflicts, keep the existing installation while you verify its source.
 
 </details>
 

@@ -46,6 +46,8 @@ The downloader matches the checked-out source version to its GitHub Release, ver
 
 The release uses the default application ID `org.watchchat.app`. In-place updates require the same ID and signing key. If they differ, preserve the existing installation and data. The same source can keep a custom application ID through a local setting.
 
+When upgrading from the public v0.13.0 to v0.13.9, tell the user that the signing key changed and let them decide whether to uninstall the old app manually. Uninstalling clears local watch settings and pairing information. Pair again after installing the new release.
+
 ### 3. Install on the user's selected watch
 
 Try `adb mdns services` for already paired devices. Ask for the watch's current debugging address/port only if discovery fails. If pairing is needed, have the user open the pairing screen and use `adb pair` with its current code. Do not scan arbitrary addresses or guess codes.

@@ -101,10 +101,9 @@ Use `build --mirror` to explicitly enable repository mirrors if needed. Debug si
 
 ## Updating and diagnostics
 
-- The watch checks the latest stable GitHub Release on startup and shows the newer version when available. To update, download and verify the signed APK, install it with ADB, and update the companion source to the matching version.
-
-- Preserve your signing key and privately back up local configuration; that backup contains secrets.
-- Update source and dependencies, rebuild, install with the same key, and restart this companion.
+- On startup, the watch checks GitHub for the latest stable release and shows the newer version when available. Download the signed APK, verify its SHA-256, install it manually with ADB, and update the companion to the matching release tag. You can update in place when the application ID and signing key match.
+- When upgrading from the public v0.13.0 to v0.13.9, verify the source of your installed app and manually uninstall the old version. This clears local watch settings and pairing information. After installing the new APK, run **Start Companion.cmd** and press **L** for LAN pairing or **P** for a one-time Internet pairing code. [v0.13.9 release notes](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.9)
+- If you build from source, back up your local configuration and signing key privately. Update the source and dependencies, rebuild, install with the same key, and restart the companion.
 - Companion logs are in `.local/computers/<machine-key>/server.stdout.log` and `server.stderr.log`. Redact chat IDs, messages, paths, domains, hostnames and credentials before sharing.
 - If a port is occupied, stop only a process verified to belong to this project. Do not terminate Codex desktop or unrelated services.
 - Desktop protocol changes can make controls unavailable. Do not replace interruption or approval with an extra natural-language chat message.
