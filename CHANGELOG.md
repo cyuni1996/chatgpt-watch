@@ -1,5 +1,14 @@
 # Changelog / 更新记录
 
+## 0.13.9
+
+- Check the latest stable GitHub Release when the watch app starts and show a manual update reminder for newer versions.
+- Use one companion window for LAN discovery pairing and one-time pairing over an existing TCP tunnel.
+- Preserve saved connection addresses, chats and drafts across mode switches, and keep settings and list scroll positions stable.
+- Match downloads to the source version, verify the Gradle distribution, and remove the old pairing and tunnel tooling.
+
+手表启动时会检查 GitHub 正式版本并提示手动更新。电脑端统一用启动窗口完成局域网配对和外网一次性配对。新版保留已保存连接及草稿，修复滚动与设置跳位，并整理安装和构建流程。
+
 ## Installation and showcase update
 
 - Copyable Chinese/English AI installation runbooks and one setup entry point.

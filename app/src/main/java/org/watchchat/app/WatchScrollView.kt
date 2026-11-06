@@ -17,15 +17,18 @@ import kotlin.math.abs
 class WatchScrollView(context:Context):ScrollView(context) {
     var feedback:ScrollFeedback?=null
     var reading=false
-    var interacting=false;private set
+    private var touching=false
+    private var moving=false
+    val interacting get()=touching || moving
     private var downY=0f
     private var lastY=0
     private var focus:View?=null
     private var lastTick=-90L
     private var lastBoundary=-450L
     private var crownUntil=0L
+    private var rotaryRemainder=0f
     private val density=resources.displayMetrics.density
-    private val idle=Runnable { interacting=false;feedback?.invalidate() }
+    private val idle=Runnable { moving=false;feedback?.invalidate() }
     private fun haptic(boundary:Boolean) {
         val now=SystemClock.uptimeMillis()
         if(boundary) { if(now-lastBoundary<450)return;lastBoundary=now;lastTick=now }
@@ -36,29 +39,51 @@ class WatchScrollView(context:Context):ScrollView(context) {
         if(vibrator?.hasVibrator()==true)vibrator.vibrate(VibrationEffect.createOneShot(if(boundary)20 else 8,if(vibrator.hasAmplitudeControl()) { if(boundary)96 else 42 } else VibrationEffect.DEFAULT_AMPLITUDE))
     }
     fun range()=(getChildAt(0)?.height ?: 0).let { (it+paddingTop+paddingBottom-height).coerceAtLeast(0) }
+    fun scrollToEnd()=scrollTo(0,range())
     fun boundary(top:Boolean) { if(range()>0) { haptic(true);feedback?.boundary(top) } }
     fun rotary(axis:Float) {
         if(!axis.isFinite())return
-        val delta=(-axis*19.2f*density).toInt().coerceIn((-54*density).toInt(),(54*density).toInt())
+        val movement=(-axis*19.2f*density).coerceIn(-54*density,54*density)
+        if(movement==0f)return
+        val end=range()
+        if(end==0 || (movement<0 && scrollY<=0) || (movement>0 && scrollY>=end)) {
+            rotaryRemainder=0f
+            boundary(movement<0)
+            return
+        }
+        // The hardware encoder can report less than one pixel on each event.
+        val total=rotaryRemainder+movement
+        val delta=total.toInt()
+        rotaryRemainder=total-delta
         if(delta==0)return
-        if((delta<0 && !canScrollVertically(-1)) || (delta>0 && !canScrollVertically(1))) { boundary(delta<0);return }
-        crownUntil=SystemClock.uptimeMillis()+500;interacting=true
-        smoothScrollBy(0,delta);markMoving()
+        crownUntil=SystemClock.uptimeMillis()+500
+        markMoving()
+        val target=(scrollY+delta).coerceIn(0,end)
+        scrollTo(0,target)
+        if(target==0 || target==end)rotaryRemainder=0f
     }
-    private fun markMoving() { removeCallbacks(idle);postDelayed(idle,180);feedback?.moved(this) }
-    override fun onInterceptTouchEvent(event:MotionEvent):Boolean {
-        if(event.actionMasked==MotionEvent.ACTION_DOWN)downY=event.y
-        return super.onInterceptTouchEvent(event)
+    private fun markMoving() { moving=true;removeCallbacks(idle);postDelayed(idle,180);feedback?.moved(this) }
+    override fun dispatchTouchEvent(event:MotionEvent):Boolean {
+        if(event.actionMasked==MotionEvent.ACTION_DOWN) {
+            downY=event.y
+            touching=true
+            rotaryRemainder=0f
+        }
+        val handled=super.dispatchTouchEvent(event)
+        if(!handled || event.actionMasked==MotionEvent.ACTION_UP || event.actionMasked==MotionEvent.ACTION_CANCEL)touching=false
+        return handled
     }
     override fun onTouchEvent(event:MotionEvent):Boolean {
-        when(event.actionMasked) {
-            MotionEvent.ACTION_DOWN->{ downY=event.y;interacting=true }
-            MotionEvent.ACTION_MOVE->{ val dy=event.y-downY;if(abs(dy)>8*density && ((dy>0 && !canScrollVertically(-1)) || (dy<0 && !canScrollVertically(1))))boundary(dy>0) }
-            MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->markMoving()
+        if(event.actionMasked==MotionEvent.ACTION_MOVE) {
+            val dy=event.y-downY
+            if(abs(dy)>8*density && ((dy>0 && !canScrollVertically(-1)) || (dy<0 && !canScrollVertically(1))))boundary(dy>0)
         }
         return super.onTouchEvent(event)
     }
-    override fun fling(velocityY:Int) { super.fling(velocityY.coerceIn((-240*density).toInt(),(240*density).toInt())) }
+    override fun fling(velocityY:Int) {
+        markMoving()
+        super.fling(velocityY)
+    }
     override fun onScrollChanged(l:Int,t:Int,oldl:Int,oldt:Int) {
         super.onScrollChanged(l,t,oldl,oldt)
         if(interacting || SystemClock.uptimeMillis()<crownUntil)markMoving()
@@ -66,12 +91,33 @@ class WatchScrollView(context:Context):ScrollView(context) {
             if(SystemClock.uptimeMillis()<crownUntil && abs(t-lastY)>48*density) { haptic(false);lastY=t }
             return
         }
+        updateListEmphasis(t)
+    }
+    override fun onLayout(changed:Boolean,left:Int,top:Int,right:Int,bottom:Int) {
+        super.onLayout(changed,left,top,right,bottom)
+        if(changed && !reading)updateListEmphasis(scrollY)
+    }
+    private fun updateListEmphasis(offset:Int) {
         val list=getChildAt(0) as? ViewGroup ?: return
+        var first:View?=null
+        var last:View?=null
+        for(i in 0 until list.childCount) {
+            val child=list.getChildAt(i)
+            if(child.visibility==View.VISIBLE && child.isClickable) {
+                if(first==null)first=child
+                last=child
+            }
+        }
+        val end=range()
+        if(end==0 || first==null || last==null)return
+        val firstCenter=first.top+first.height/2f
+        val lastCenter=last.top+last.height/2f
+        val focusLine=firstCenter+(lastCenter-firstCenter)*(offset.toFloat()/end).coerceIn(0f,1f)
         var nearest:View?=null;var best=Float.MAX_VALUE
         for(i in 0 until list.childCount) {
             val child=list.getChildAt(i)
-            val distance=abs(child.top+child.height/2f-t-height/2f)
-            if(child.isClickable && distance<best) { nearest=child;best=distance }
+            val distance=abs(child.top+child.height/2f-focusLine)
+            if(child.visibility==View.VISIBLE && child.isClickable && distance<best) { nearest=child;best=distance }
             val amount=(distance/(height/2f).coerceAtLeast(1f)).coerceIn(0f,1f)
             val scale=if(resources.configuration.fontScale>1.2f)1f else 1f-.08f*amount
             child.scaleX=scale;child.scaleY=scale;child.alpha=1f-.2f*amount
@@ -83,7 +129,7 @@ class WatchScrollView(context:Context):ScrollView(context) {
         }
         focus=nearest
     }
-    fun stopFeedback() { removeCallbacks(idle);interacting=false;feedback?.stop() }
+    fun stopFeedback() { removeCallbacks(idle);touching=false;moving=false;crownUntil=0;rotaryRemainder=0f;feedback?.stop() }
     override fun onDetachedFromWindow() { stopFeedback();super.onDetachedFromWindow() }
 }
 

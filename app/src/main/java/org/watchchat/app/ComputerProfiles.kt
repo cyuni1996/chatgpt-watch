@@ -6,16 +6,27 @@ import org.json.JSONObject
 import java.util.UUID
 
 data class ComputerProfile(val id: String, val name: String, val url: String, val token: String, val pin: String,
-    val mode: String="lan", val lanUrl: String=if(mode=="lan")url else "", val publicUrl: String=if(mode=="public")url else "") {
+    val mode: String="lan", val lanUrl: String=if(mode=="lan")url else "",
+    val tunnelUrl: String=if(mode=="tunnel")url else "") {
     override fun toString()="ComputerProfile($id, $name)"
     fun json()=JSONObject().put("id",id).put("name",name).put("url",url).put("token",token).put("pin",pin)
-        .put("mode",mode).put("lanUrl",if(mode=="lan")url else lanUrl).put("publicUrl",if(mode=="public")url else publicUrl)
-    fun using(nextMode:String):ComputerProfile {
-        require(nextMode in listOf("lan","public")) { "连接模式无效" }
-        val endpoint=if(nextMode=="lan") { if(mode=="lan")url else lanUrl } else { if(mode=="public")url else publicUrl }
-        require(endpoint.isNotEmpty()) { "请先配置此模式的地址" }
-        return copy(url=endpoint,mode=nextMode,lanUrl=if(mode=="lan")url else lanUrl,publicUrl=if(mode=="public")url else publicUrl)
+        .put("mode",mode).put("lanUrl",address("lan")).put("tunnelUrl",address("tunnel"))
+    fun address(connectionMode: String): String = when (connectionMode) {
+        mode -> url
+        "lan" -> lanUrl
+        "tunnel" -> tunnelUrl
+        else -> error("连接模式无效")
     }
+    fun using(nextMode:String):ComputerProfile {
+        val endpoint=address(nextMode)
+        require(endpoint.isNotEmpty()) { "请先配置此模式的地址" }
+        return withAddress(nextMode,endpoint)
+    }
+    fun withAddress(connectionMode: String, endpoint: String): ComputerProfile = copy(
+        mode = connectionMode, url = endpoint,
+        lanUrl = if (connectionMode == "lan") endpoint else address("lan"),
+        tunnelUrl = if (connectionMode == "tunnel") endpoint else address("tunnel")
+    )
 }
 
 /** Connection credentials and all mutable chat state are scoped to a computer. */
@@ -24,9 +35,18 @@ class ComputerProfiles(private val prefs: SharedPreferences) {
         val data=JSONArray(prefs.getString("computers","[]"))
         return (0 until data.length()).map {
             val item=data.getJSONObject(it)
-            val mode=item.optString("mode","lan");val url=item.getString("url")
-            ComputerProfile(item.getString("id"),item.getString("name"),url,item.getString("token"),item.getString("pin"),
-                mode,item.optString("lanUrl",if(mode=="lan")url else ""),item.optString("publicUrl",if(mode=="public")url else ""))
+            val storedMode = item.optString("mode","lan")
+            val url = item.getString("url")
+            val lan = if (storedMode=="lan") url else item.optString("lanUrl")
+            val tunnel = if (storedMode=="tunnel") url else item.optString("tunnelUrl")
+            // Old domain-only profiles retain their identity and address for re-pairing.
+            val mode = when (storedMode) {
+                "public" -> if (tunnel.isNotBlank() || lan.isBlank()) "tunnel" else "lan"
+                else -> storedMode
+            }
+            val remote = tunnel.ifBlank { if(storedMode=="public") url else item.optString("publicUrl") }
+            ComputerProfile(item.getString("id"),item.getString("name"),if(mode=="tunnel") remote else lan,
+                item.getString("token"),item.getString("pin"),mode,lan,remote)
         }
     }
     fun activeId(): String=prefs.getString("activeComputer","") ?: ""
@@ -58,7 +78,7 @@ class ComputerProfiles(private val prefs: SharedPreferences) {
     fun save(profile: ComputerProfile, activate: Boolean=true) {
         require(profile.id.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "电脑编号无效" }
         require(profile.name.isNotBlank() && profile.name.length<=40) { "电脑名称需为1到40个字符" }
-        require(profile.mode in listOf("lan","public")) { "连接模式无效" }
+        require(profile.mode in listOf("lan","tunnel")) { "连接模式无效" }
         val values=all().toMutableList()
         val index=values.indexOfFirst { it.id==profile.id }
         if(index<0)values.add(profile) else values[index]=profile

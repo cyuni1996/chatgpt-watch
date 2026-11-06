@@ -7,14 +7,14 @@
 ```text
 app/        Native Kotlin / Android UI and tests
 bridge/     Python HTTPS companion, Windows speech and Node desktop adapters
-tools/      Setup, pairing, tunnel configuration, isolated fixtures and checks
+tools/      Setup, pairing, isolated fixtures and checks
 docs/       Installation, offline showcase and artwork notes
 gradle/     Wrapper and version catalog
 ```
 
 ```mermaid
 flowchart LR
-    W[Wear OS watch] <-->|LAN HTTPS / domain tunnel| B[Python companion]
+    W[Wear OS watch] <-->|LAN HTTPS / TCP passthrough| B[Python companion]
     B <--> N[Node local-pipe adapter]
     N <--> C[Running Codex desktop]
     B <--> S[Windows speech]
@@ -39,6 +39,10 @@ node --test bridge/control_state.test.mjs bridge/control_transport.test.mjs
 回归使用虚构数据和隔离服务；设备自动化另需授权的 ADB 设备。真实聊天与审批不得用于自动化测试。
 
 Regressions use synthetic fixtures. Hardware automation separately requires authorized ADB access. Do not exercise live chats or approvals during automated tests.
+
+发布时，Git 标签使用 `v<versionName>`，从该标签构建并签名，将 APK 命名为 `chatgpt-watch-<versionName>.apk`。在同一个 Release 中提供 `SHA256SUMS`，按 `<sha256>  <filename>` 格式写入该 APK 的校验值。发布前运行 `apksigner verify`。
+
+Build and sign from the `v<versionName>` tag, name the APK `chatgpt-watch-<versionName>.apk`, and attach it with `SHA256SUMS` to the same Release. Use `<sha256>  <filename>` for the checksum entry and run `apksigner verify` before publishing.
 
 ## 提交前检查 / Before publishing
 

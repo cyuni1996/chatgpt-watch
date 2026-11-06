@@ -1,6 +1,10 @@
 ﻿$ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent $PSScriptRoot
 $python = (Get-Command python).Source
+& $python -c "from importlib.util import find_spec; raise SystemExit(any(find_spec(name) is None for name in ('zeroconf', 'ifaddr')))"
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning '局域网广播缺少依赖。请运行 python -m pip install -r bridge/requirements.txt，再重启连接服务。'
+}
 $computer = (& $python (Join-Path $PSScriptRoot 'computer_runtime.py') | ConvertFrom-Json)
 if ($LASTEXITCODE -ne 0) { throw '无法读取本机连接配置。' }
 $project = $computer.projectDirectory
@@ -14,6 +18,7 @@ if (Test-Path -LiteralPath $pidFile) {
     $existing = Get-CimInstance Win32_Process -Filter "ProcessId=$serverPid" -ErrorAction SilentlyContinue
     if ($existing -and $existing.CommandLine -match [regex]::Escape($scriptPath)) {
         Write-Output '连接服务已经在运行。'
+        Write-Output $computer.connectionAddressLines
         exit 0
     }
 }
@@ -31,3 +36,4 @@ try {
 }
 $process.Id | Set-Content -LiteralPath $pidFile
 Write-Output ('手表对话连接服务已启动：' + $computer.computerName)
+Write-Output $computer.connectionAddressLines

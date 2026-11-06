@@ -13,4 +13,3 @@ Third-party components retain their own licenses. The bundled Gradle Wrapper's l
 | aiohttp / cryptography | https://github.com/aio-libs/aiohttp · https://github.com/pyca/cryptography |
 | zeroconf / ifaddr | https://github.com/python-zeroconf/python-zeroconf · https://github.com/ifaddr/ifaddr |
 | Python / Node.js / Windows speech | https://www.python.org/ · https://nodejs.org/ · https://learn.microsoft.com/dotnet/api/system.speech |
-| Cloudflare Tunnel (optional) | https://github.com/cloudflare/cloudflared |

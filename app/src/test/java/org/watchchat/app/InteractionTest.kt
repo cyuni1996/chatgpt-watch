@@ -1,5 +1,6 @@
 package org.watchchat.app
 
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
@@ -10,8 +11,10 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.json.JSONObject
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[30])
 class InteractionTest {
@@ -51,6 +54,67 @@ class InteractionTest {
         scroll.addView(body);scroll.measure(View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY));scroll.layout(0,0,240,240)
         scroll.scrollTo(0,150);assertEquals(1f,body.scaleX);assertFalse(body.isSelected)
         scroll.stopFeedback();assertFalse(scroll.interacting)
+    }
+    @Test fun longScrollCanReachBothEndsWithFlingAndSuccessiveCrownTicks() {
+        val context=RuntimeEnvironment.getApplication()
+        val scroll=WatchScrollView(context).apply { reading=true;overScrollMode=View.OVER_SCROLL_NEVER }
+        scroll.addView(TextView(context).apply { minHeight=960;text="测试内容" })
+        val size=View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY)
+        scroll.measure(size,size);scroll.layout(0,0,240,240)
+        assertTrue(scroll.range()>500)
+        fun settle() {
+            repeat(120) {
+                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(16))
+                scroll.computeScroll()
+            }
+        }
+        scroll.fling(5000);settle()
+        assertEquals(scroll.range(),scroll.scrollY)
+        scroll.fling(-5000);settle()
+        assertEquals(0,scroll.scrollY)
+        repeat(100) { scroll.rotary(-1f) }
+        assertEquals(scroll.range(),scroll.scrollY)
+        repeat(100) { scroll.rotary(1f) }
+        assertEquals(0,scroll.scrollY)
+    }
+    @Test fun fractionalHardwareCrownTicksAccumulateAllTheWayToTheBoundary() {
+        val context=RuntimeEnvironment.getApplication()
+        val scroll=WatchScrollView(context)
+        scroll.addView(TextView(context).apply { minHeight=500;text="测试内容" })
+        val size=View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY)
+        scroll.measure(size,size);scroll.layout(0,0,240,240)
+        val step=0.0131f
+        val end=scroll.range()
+        assertTrue(end>1)
+        scroll.scrollTo(0,end-1)
+        repeat(8) { scroll.rotary(-step) }
+        assertEquals(end,scroll.scrollY)
+        repeat(8) { scroll.rotary(step) }
+        assertTrue(scroll.scrollY<end)
+        scroll.stopFeedback()
+        scroll.scrollTo(0,1)
+        repeat(8) { scroll.rotary(step) }
+        assertEquals(0,scroll.scrollY)
+    }
+    @Test fun listEmphasisFollowsTheFirstAndLastActionsAtExactCrownBoundaries() {
+        val context=RuntimeEnvironment.getApplication()
+        val scroll=WatchScrollView(context)
+        val list=android.widget.LinearLayout(context).apply { orientation=android.widget.LinearLayout.VERTICAL }
+        val actions=(1..5).map {
+            TextView(context).apply { text="设置 $it";isClickable=true }.also { list.addView(it,-1,64) }
+        }
+        list.addView(TextView(context).apply { text="WatchChat" },-1,20)
+        scroll.addView(list)
+        val size=View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY)
+        scroll.measure(size,size);scroll.layout(0,0,240,240)
+        assertNotNull(actions.first().foreground)
+        repeat(12) { scroll.rotary(-1f) }
+        assertEquals(scroll.range(),scroll.scrollY)
+        assertNotNull(actions.last().foreground)
+        repeat(12) { scroll.rotary(1f) }
+        assertEquals(0,scroll.scrollY)
+        assertNotNull(actions.first().foreground)
+        assertNull(actions.last().foreground)
     }
     @Test fun cancellingAnAnimatedReturnCannotCommitLaterOrPopTwice() {
         val context=RuntimeEnvironment.getApplication();Settings.Global.putFloat(context.contentResolver,Settings.Global.ANIMATOR_DURATION_SCALE,1f)

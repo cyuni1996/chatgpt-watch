@@ -19,24 +19,24 @@ adb version
 
 ## 下载并安装
 
-在 PowerShell 中将工程克隆到本机普通目录，安装电脑依赖并下载签名 APK：
+使用签名 APK 时，先从 [GitHub Releases](https://github.com/cyuni1996/chatgpt-watch/releases) 选择版本，再克隆同一个发布标签。下面以 `v0.13.9` 为例：
 
 ```powershell
-git clone https://github.com/cyuni1996/chatgpt-watch.git
+git clone --branch v0.13.9 https://github.com/cyuni1996/chatgpt-watch.git
 cd chatgpt-watch
 python tools/setup_watch.py deps
-python tools/setup_watch.py download --tag v0.13.0
+python tools/setup_watch.py download
 ```
 
-下载器会校验 Release 的 SHA-256。手表开启无线调试后，用当次实际地址操作；配对端口与调试端口通常不同，配对码按提示输入：
+下载器会校验 Release 的 SHA-256，并输出安装包路径。下载后，以该标签内的安装文档为准。从开发分支拉取的源码如果没有同版本 Release，请走[源码构建](#源码构建)。手表开启无线调试后，用当次实际地址操作。配对端口与调试端口通常不同，配对码按提示输入。
 
 ```powershell
 adb pair WATCH_IP:PAIRING_PORT
 adb connect WATCH_IP:DEBUG_PORT
-python tools/setup_watch.py install --apk .local/downloads/v0.13.0/chatgpt-watch-0.13.0.apk
+python tools/setup_watch.py install --apk .local/downloads/v0.13.9/chatgpt-watch-0.13.9.apk
 ```
 
-已配对的手表可跳过 `adb pair`。多设备时为安装器加 `--serial`，ADB 不在 PATH 时加 `--adb`。公开版标识为 `org.watchchat.app`；覆盖更新需保持标识与签名一致。安装失败时不要自动卸载或清除数据。
+已配对的手表可跳过 `adb pair`。多设备时为安装器加 `--serial`，ADB 不在 PATH 时加 `--adb`。默认应用标识为 `org.watchchat.app`。覆盖更新需保持标识与签名一致。安装失败时请保留已有安装及其数据。
 
 ## 调用聊天配置与服务生命周期
 
@@ -63,54 +63,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
 
 1. 电脑与手表接入可互访网络，避免访客网络设备隔离。
 2. Windows 防火墙只在可信网络允许该 Python 程序的 TCP 8766 和 mDNS UDP 5353，不需要关闭整个防火墙。
-3. 运行 `python tools/manage_connections.py pair`。
+3. 运行 **Start Companion.cmd**。首次添加时，在同一窗口按 **L** 开启 3 分钟配对窗口。
 4. 手表进入 **设置 → 电脑连接 → 局域网扫描**，选择电脑。
-5. 比较两端核对码，在电脑输入 `y` 批准。窗口 3 分钟后关闭；设备发现不广播口令。
-6. 电脑地址变化时重新扫描同一电脑。已有电脑的模式和地址可在连接页管理。
+5. 在手表核对电脑名称和地址，点 **确认配对**。电脑自动接受，3 分钟到期或配对成功后关闭窗口。
+6. **局域网扫描**同时列出已保存和新发现的电脑，点选目标即可。地址没变时，也可在 **电脑连接** 页直接点已保存的电脑重连。
 
-每日聊天不需要开启 ADB。无线调试只用于安装与更新；调试端口变化与应用连接端口无关。扫描要求 IPv4 与 mDNS 多播，不支持的网络可使用高级手动配对，但不要将真实令牌粘贴到公开问题中。
+每日聊天无需开启 ADB。无线调试用于安装与更新，调试端口和聊天连接端口各自独立。首次免输码配对需要 Wi-Fi、IPv4 和 mDNS 扫描；已经配对的电脑也可用 IP 和端口手动重连。
 
-## 公网连接
+## 外网连接
 
-公网模式需要你自己的固定域名，例如 `chat.example.com`，并且电脑在线。以下为本地管理的 Cloudflare 命名隧道方案；没有预装隧道或代管服务器。
+局域网和外网共用同一个电脑服务。运行 **Start Companion.cmd** 查看各网卡的内网 IP 和 TCP 端口（默认 `8766`）。把公网端口映射到穿透服务能访问的网卡 IP 和该端口，使用 TCP 透传，让手表直接校验电脑的 HTTPS 证书。
 
-1. 将域名接入 Cloudflare DNS，安装官方 `cloudflared`。
-2. 登录并创建命名隧道和 DNS 路由：
-
-```powershell
-cloudflared tunnel login
-cloudflared tunnel create watch-chat
-cloudflared tunnel route dns watch-chat chat.example.com
-```
-
-3. 用创建命令返回的 UUID 与真实凭据文件路径配置工程：
-
-```powershell
-python tools/configure_public.py --domain chat.example.com --tunnel-id YOUR_TUNNEL_UUID --credentials-file "C:\path\to\YOUR_TUNNEL_UUID.json"
-```
-
-工具验证凭据与隧道编号一致，只写入本机 `public-endpoint.json` 和 `cloudflared.yml`；它不会创建 DNS 或隧道。
-
-4. 重启电脑连接服务，再启动隧道：
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/start-companion.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/start-public-tunnel.ps1
-```
-
-5. 打开配对窗口，手表选择 **公网连接** 并填写固定 HTTPS 域名，两端核对码后允许。需要手表自身具备可用的互联网连接。
-6. 切换到另一网络验证读取同一聊天；没有域名和真实外网测试前，不能认为公网已部署成功。
-
-公网 HTTPS 由域名证书提供。隧道只转发到电脑回环地址 `127.0.0.1:8767`，局域网仍使用证书固定的 HTTPS 8766。无需路由器入站端口映射。隧道配置屏蔽 `/api/connect/admin/` 管理路径；管理还要求本机来源和独立管理口令。
-
-当前客户端不支持 Cloudflare Access 等网页登录挑战。不要将示例域名原样使用，也不要配置 `noTLSVerify` 来绕过外部 HTTPS 校验。关闭隧道不会关闭局域网连接：
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-public-tunnel.ps1
-```
-
-参考：[Cloudflare 命名隧道](https://developers.cloudflare.com/tunnel/features/locally-managed-tunnels/create-local-tunnel/)。
+1. 在同一个 CMD 窗口按 **P**，生成一个 3 分钟有效、成功使用一次后失效的外网配对码。
+2. 手表进入 **设置 → 电脑连接 → 外网连接**，填写完整 HTTPS 地址（例如 `https://203.0.113.5:24876`）和配对码。可以直接在外网首次配对。
+3. 配对完成后，从电脑列表重连，无需再次输入码。回到局域网时可以扫描并点选同一台电脑；两种地址分别保存，共用原来的会话和草稿。
 
 ## 设备授权管理
 
@@ -123,7 +89,7 @@ python tools/manage_connections.py revoke --device-id DEVICE_ID_FROM_LIST
 
 ## 源码构建
 
-仅修改源码时需要 JDK 17/21、Android SDK Platform 35、Build Tools 和 Platform Tools。设置 `JAVA_HOME` 与 `ANDROID_HOME`（或本机 `local.properties` 中的 `sdk.dir`），然后运行：
+源码构建需要 JDK 17（也可用 JDK 21）、Android SDK Platform 35、Build Tools 34.0.0 和 Platform Tools。通过 Android Studio 的 SDK Manager 或 `sdkmanager` 安装这些组件并接受 SDK 许可。设置 `JAVA_HOME` 与 `ANDROID_HOME`（或本机 `local.properties` 中的 `sdk.dir`）。仓库自带 Gradle Wrapper，首次构建会下载 Gradle 和依赖。
 
 ```powershell
 python tools/setup_watch.py doctor --target build
@@ -133,11 +99,15 @@ python tools/setup_watch.py install
 
 网络无法访问默认仓库时，可明确使用 `build --mirror`。debug APK 使用本机调试签名，与 Release 签名不同；覆盖更新前核对已有签名。发布构建运行 `.\gradlew.bat :app:assembleRelease`，默认输出未签名包，需用自己的私钥签名并在仓库之外备份。详见 [Android 官方说明](https://developer.android.com/build/building-cmdline)。
 
+如果要沿用已有安装的自定义应用标识，在 Git 忽略的 `local.properties` 中设置 `watchchat.applicationId` 为原标识。已有安装确实使用了本机当前的调试密钥时，可再设置 `watchchat.signWithDebugKey=true`，让本机 Release 构建沿用该签名。构建配置和 `.local/` 下的连接资料均保留在本机。
+
 ## 更新与排查
+
+- 手表启动时会查询 GitHub 最新正式 Release，发现新版时提示版本号。更新时下载同版本签名 APK、校验 SHA-256，再通过 ADB 覆盖安装并更新电脑端源码。
 
 - 更新前保留签名密钥，备份本机配置到私有位置；备份中含秘密。
 - 更新源码、安装依赖、重新构建，用同一签名覆盖安装；重启本工程连接服务。
-- 日志：`.local/computers/<machine-key>/server.stdout.log` 和 `server.stderr.log`；隧道日志位于同目录。分享之前先删掉会话、消息、路径、域名、主机名与口令。
+- 电脑服务日志位于 `.local/computers/<machine-key>/server.stdout.log` 和 `server.stderr.log`。分享之前先删掉会话、消息、路径、域名、主机名与口令。
 - 同端口已有服务时只停止自己确认属于此工程的进程，不要终止 Codex 桌面或其他工程。
 - 真实桌面接口变化时，部分功能可能明确报不可用。不要将停止／确认回退为新发一条聊天指令。
 

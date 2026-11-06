@@ -18,12 +18,16 @@ import urllib.request
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = 'org.watchchat.app'
 
 
 def sdk_root(env=None):
     env = os.environ if env is None else env
     candidates = [env.get('ANDROID_HOME'), env.get('ANDROID_SDK_ROOT')]
+    properties = ROOT / 'local.properties'
+    if properties.is_file():
+        value = re.search(r'^\s*sdk\.dir\s*=\s*(.+)$',properties.read_text(encoding='utf-8-sig'),re.MULTILINE)
+        if value:
+            candidates.append(re.sub(r'\\([\\: ])',r'\1',value[1].strip()))
     if env.get('LOCALAPPDATA'):
         candidates.append(str(Path(env['LOCALAPPDATA']) / 'Android' / 'Sdk'))
     return next((Path(value) for value in candidates if value and Path(value).is_dir()), None)
@@ -66,10 +70,10 @@ def checked(command, **kwargs):
     return subprocess.run([str(value) for value in command], check=True, **kwargs)
 
 
-def version(name, args, minimum=None):
+def version(name, args, minimum, maximum=None):
     executable = shutil.which(name)
-    if name == 'java' and os.environ.get('JAVA_HOME'):
-        candidate = Path(os.environ['JAVA_HOME']) / 'bin' / ('java.exe' if os.name == 'nt' else 'java')
+    if name in ('java','javac') and os.environ.get('JAVA_HOME'):
+        candidate = Path(os.environ['JAVA_HOME']) / 'bin' / (name+'.exe' if os.name == 'nt' else name)
         if candidate.is_file():
             executable = str(candidate)
     if not executable:
@@ -79,8 +83,11 @@ def version(name, args, minimum=None):
         line = (result.stdout or result.stderr).splitlines()[0]
         numbers = re.search(r'(\d+)(?:\.(\d+))?', line)
         major = int(numbers.group(1)) if numbers else None
-        return {'ok': result.returncode == 0 and (minimum is None or (major is not None and major >= minimum)),
-                'major': major, 'minimum': minimum}
+        ready = major is not None and major >= minimum and (maximum is None or major <= maximum)
+        details = {'ok': result.returncode == 0 and ready, 'major': major, 'minimum': minimum}
+        if maximum is not None:
+            details['maximum'] = maximum
+        return details
     except (OSError, subprocess.SubprocessError, IndexError):
         return {'ok': False, 'reason': 'cannot-run'}
 
@@ -107,9 +114,13 @@ def doctor(target='all', desktop=False):
               'python_dependencies': {'ok': all(importlib.util.find_spec(name) is not None for name in ('aiohttp', 'cryptography', 'zeroconf', 'ifaddr'))}}
     required = ['windows', 'python', 'node', 'python_dependencies'] if target in ('all', 'companion') else ['python']
     if target in ('all', 'build'):
-        checks['java'] = version('java', ['-version'], 17)
+        # AGP 8.7 requires Java 17; the Gradle 8.11.1 wrapper supports up to Java 23.
+        checks['java'] = version('java', ['-version'], 17, 23)
+        checks['javac'] = version('javac', ['-version'], 17, 23)
         checks['android_sdk_35'] = {'ok': bool(sdk and (sdk / 'platforms/android-35/android.jar').is_file())}
-        required += ['java', 'android_sdk_35']
+        aapt2 = 'aapt2.exe' if os.name == 'nt' else 'aapt2'
+        checks['android_build_tools_34'] = {'ok': bool(sdk and (sdk / 'build-tools/34.0.0' / aapt2).is_file())}
+        required += ['java', 'javac', 'android_sdk_35', 'android_build_tools_34']
     if target in ('all', 'install'):
         try:
             adb = adb_path()
@@ -188,7 +199,7 @@ def main():
     check.add_argument('--desktop', action='store_true', help='Read the desktop tool catalog without sending a chat')
     subs.add_parser('deps', help='Install Python dependencies into the current interpreter/environment')
     downloader = subs.add_parser('download', help='Download the signed project APK and verify its release checksum')
-    downloader.add_argument('--tag', default='v0.13.0')
+    downloader.add_argument('--tag', help='Published tag matching the current source version')
     builder = subs.add_parser('build', help='Build a locally signed debug APK')
     builder.add_argument('--mirror', action='store_true', help='Explicitly opt into the Aliyun dependency mirrors')
     installer = subs.add_parser('install', help='Install/update on one authorized watch; never uninstall')
@@ -198,7 +209,7 @@ def main():
     starter = subs.add_parser('start', help='Start the companion using a real caller context')
     starter.add_argument('--caller-thread-id')
     starter.add_argument('--name')
-    subs.add_parser('pair', help='Open the existing three-minute pairing flow; compare the codes')
+    subs.add_parser('pair', help='Open the three-minute LAN pairing window; confirm on the watch')
     subs.add_parser('verify', help='Read desktop history counts; never send a test prompt')
     args = parser.parse_args()
     try:

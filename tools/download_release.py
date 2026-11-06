@@ -1,15 +1,21 @@
-"""Download a named official project release and verify its published SHA-256."""
+"""Download the signed release matching this checkout and verify its SHA-256."""
 import argparse
 import hashlib
 import json
 from pathlib import Path
 import re
+import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'cyuni1996/chatgpt-watch'
-DEFAULT_TAG = 'v0.13.0'
-APK_NAME = 'chatgpt-watch-0.13.0.apk'
+
+def source_tag():
+    gradle = (ROOT / 'app/build.gradle.kts').read_text(encoding='utf8')
+    match = re.search(r'^\s*versionName\s*=\s*"([^"]+)"',gradle,re.MULTILINE)
+    if not match:
+        raise ValueError('Could not determine the WatchChat version from app/build.gradle.kts')
+    return 'v'+match[1]
 
 
 def read_url(url, limit):
@@ -34,10 +40,20 @@ def expected_hash(checksums, filename):
     return matches[0]
 
 
-def download(tag=DEFAULT_TAG, directory=None):
+def download(tag=None, directory=None):
+    checkout = source_tag()
+    tag = checkout if tag is None else tag
     if not re.fullmatch(r'v\d+\.\d+\.\d+(?:[-.][A-Za-z0-9.-]+)?', tag):
         raise ValueError('Use an explicit version tag such as v0.13.0')
-    info = json.loads(read_url('https://api.github.com/repos/' + REPOSITORY + '/releases/tags/' + tag, 1024 * 1024))
+    if tag != checkout:
+        raise ValueError(f'APK {tag} does not match source {checkout}. Check out {tag} or build this source with setup_watch.py build.')
+    apk_name = 'chatgpt-watch-'+tag[1:]+'.apk'
+    try:
+        info = json.loads(read_url('https://api.github.com/repos/' + REPOSITORY + '/releases/tags/' + tag, 1024 * 1024))
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+        raise ValueError(f'No published APK for {tag}. Check out a published release tag or run setup_watch.py build.') from None
     if info.get('draft') or info.get('prerelease') or info.get('tag_name') != tag:
         raise ValueError('Expected a published stable release with the requested tag')
     assets = info.get('assets', [])
@@ -49,13 +65,13 @@ def download(tag=DEFAULT_TAG, directory=None):
         if not url.startswith('https://github.com/' + REPOSITORY + '/releases/download/' + tag + '/'):
             raise ValueError('Release asset is outside the expected repository/version')
         return url
-    digest = expected_hash(read_url(asset('SHA256SUMS'), 16384).decode('utf8'), APK_NAME)
+    digest = expected_hash(read_url(asset('SHA256SUMS'), 16384).decode('utf8'), apk_name)
     output = Path(directory) if directory else ROOT / '.local/downloads' / tag
     output.mkdir(parents=True, exist_ok=True)
-    target = output / APK_NAME
+    target = output / apk_name
     if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == digest:
         return target
-    content = read_url(asset(APK_NAME), 30 * 1024 * 1024)
+    content = read_url(asset(apk_name), 30 * 1024 * 1024)
     if hashlib.sha256(content).hexdigest() != digest or not content.startswith(b'PK'):
         raise ValueError('APK checksum or file format did not match; nothing was installed')
     temporary = target.with_suffix('.download')
@@ -69,7 +85,7 @@ def download(tag=DEFAULT_TAG, directory=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--tag', default=DEFAULT_TAG)
+    parser.add_argument('--tag')
     args = parser.parse_args()
     try:
         target = download(args.tag)

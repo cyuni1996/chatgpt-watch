@@ -1,6 +1,7 @@
 """Choose an independent identity/cache for this physical computer, including copied checkouts."""
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -32,6 +33,27 @@ def prepare_runtime(base=None,key=None,name=None,caller=None):
     atomic_json(directory/'connection.json',config)
     return directory,config,cert,private_key
 
+def connection_address_lines(port):
+    lines = [f'电脑连接服务 TCP 端口：{port}']
+    try:
+        import ifaddr
+    except ImportError:
+        adapters = []
+    else:
+        adapters = ifaddr.get_adapters()
+    for adapter in adapters:
+        for entry in adapter.ips:
+            if not isinstance(entry.ip, str):
+                continue
+            address = ipaddress.IPv4Address(entry.ip)
+            if not (address.is_loopback or address.is_link_local or address.is_unspecified):
+                lines.append(f'{adapter.nice_name}  https://{address}:{port}')
+    if len(lines) == 1:
+        lines.append('未找到可用的内网 IPv4 地址，请检查电脑的网络连接。')
+    else:
+        lines.append('穿透映射目标：选择转发端能访问的网卡 IP，端口填上面的 TCP 端口。')
+    return lines
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--name')
@@ -46,5 +68,6 @@ if __name__=='__main__':
             except ValueError: parser.error('--caller-thread-id must be an existing chat UUID')
         directory,config,_,_=prepare_runtime(name=args.name,caller=caller)
         result={'directory':str(directory),'projectDirectory':str(ROOT),'computerId':config['computerId'],'computerName':config['computerName'],
-                'port':config['port'],'callerThreadId':config.get('callerThreadId')}
+                'port':config['port'],'callerThreadId':config.get('callerThreadId'),
+                'connectionAddressLines':connection_address_lines(config['port'])}
     print(json.dumps(result))

@@ -2,6 +2,7 @@ package org.watchchat.app
 
 import android.os.Looper
 import android.os.SystemClock
+import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -41,10 +42,10 @@ class MainActivityTest {
         layout()
     }
     @After fun stop() { controller.pause().stop().destroy() }
-    private fun layout() {
+    private fun layout(size:Int=500) {
         val decor=activity.window.decorView
-        decor.measure(View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.EXACTLY))
-        decor.layout(0,0,500,500)
+        decor.measure(View.MeasureSpec.makeMeasureSpec(size,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(size,View.MeasureSpec.EXACTLY))
+        decor.layout(0,0,size,size)
     }
     private fun swipe(left: Boolean, vertical: Boolean=false) {
         layout()
@@ -357,6 +358,118 @@ class MainActivityTest {
         val modelScroll=page.getChildAt(page.childCount-2) as android.widget.ScrollView
         assertTrue("Scrolling models must not cover Save",modelScroll.bottom<=save.top)
         assertTrue(save.bottom<=page.height-page.paddingBottom)
+    }
+
+    @Test @Config(qualifiers="w240dp-h240dp-round-mdpi")
+    fun settingsCanScrollFromOverTheChatInputToTheVersionFooter() {
+        call("settingsPage")
+        val decor=activity.window.decorView
+        val size=View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY)
+        decor.measure(size,size)
+        decor.layout(0,0,240,240)
+        val scroll=value("activeScroll") as WatchScrollView
+        val inputBounds=Rect()
+        assertTrue((value("input") as View).getGlobalVisibleRect(inputBounds))
+        assertTrue(scroll.canScrollVertically(1))
+        val start=SystemClock.uptimeMillis()
+        val from=inputBounds.centerY().toFloat()
+        val to=scroll.top+12f
+        val actions=listOf(MotionEvent.ACTION_DOWN,MotionEvent.ACTION_MOVE,MotionEvent.ACTION_MOVE,MotionEvent.ACTION_UP)
+        actions.forEachIndexed { index, action ->
+            val event=MotionEvent.obtain(start,start+index*100L,action,
+                inputBounds.centerX().toFloat(),from+(to-from)*index/actions.lastIndex,0)
+            activity.dispatchTouchEvent(event)
+            event.recycle()
+        }
+        assertTrue("The hidden chat input must not cancel the settings drag",scroll.scrollY>0)
+        scroll.scrollTo(0,scroll.range())
+        assertFalse(scroll.canScrollVertically(1))
+        val list=scroll.getChildAt(0) as ViewGroup
+        assertEquals(6,list.childCount)
+        val footer=list.getChildAt(list.childCount-1) as android.widget.TextView
+        val version=activity.packageManager.getPackageInfo(activity.packageName,0).versionName.orEmpty()
+        assertEquals("WatchChat $version".trimEnd(),footer.text.toString())
+        val bounds=Rect()
+        assertTrue(footer.getGlobalVisibleRect(bounds))
+        assertTrue(bounds.bottom<=240)
+    }
+
+    private fun panelLabels(view:View=value("overlay") as View):List<android.widget.TextView> =
+        if(view is ViewGroup)(0 until view.childCount).flatMap { panelLabels(view.getChildAt(it)) }
+        else listOfNotNull(view as? android.widget.TextView)
+
+    @Test @Config(qualifiers="w240dp-h240dp-round-mdpi")
+    fun settingsToggleKeepsTheBottomAndTheSameButton() {
+        call("settingsPage");layout(240)
+        val page=value("overlay")
+        val scroll=value("activeScroll") as WatchScrollView
+        scroll.scrollToEnd()
+        val offset=scroll.scrollY
+        assertTrue(offset>0)
+        val toggle=panelLabels().first { it.text=="触感反馈：开启" }
+        assertTrue(toggle.performClick());layout(240)
+        assertSame(page,value("overlay"))
+        assertSame(scroll,value("activeScroll"))
+        assertEquals(offset,scroll.scrollY)
+        assertEquals("触感反馈：关闭",toggle.text.toString())
+        assertFalse(activity.getSharedPreferences("connection",0).getBoolean("ui.haptics",true))
+        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,(value("chatPage") as View).importantForAccessibility)
+        activity.onBackPressed()
+        assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO,(value("chatPage") as View).importantForAccessibility)
+    }
+
+    @Test fun appearanceToggleAndFontPickerPreserveTheParentPanel() {
+        call("settingsPage");call("appearancePage")
+        val page=value("overlay")
+        val background=panelLabels().first { it.text=="背景：龙娘插画" }
+        assertTrue(background.performClick())
+        assertSame(page,value("overlay"))
+        assertEquals("背景：纯净阅读",background.text.toString())
+        val font=panelLabels().first { it.text=="字体：标准" }
+        assertTrue(font.performClick())
+        assertTrue(panelLabels().first { it.text=="较大" }.performClick())
+        assertSame(page,value("overlay"))
+        assertEquals("字体：较大",font.text.toString())
+    }
+
+    @Test fun switchingHistoryTabsAndModelOptionsKeepsEachViewport() {
+        call("openDrawer")
+        val drawer=value("overlay")
+        val drawerViewport=value("activeScroll")
+        val pinned=panelLabels().first { it.contentDescription=="会话分类：置顶" }
+        assertTrue(pinned.performClick())
+        assertTrue(pinned.isSelected)
+        assertSame(drawer,value("overlay"))
+        assertSame(drawerViewport,value("activeScroll"))
+        call("closeOverlay")
+        val available=JSONArray().put(JSONObject().put("id","a").put("name","模型 A")
+            .put("efforts",JSONArray().put("medium")))
+        set("models",available)
+        call("drawModels")
+        val modelsPanel=value("overlay")
+        val modelsViewport=value("activeScroll")
+        val save=panelLabels().first { it.text=="保存" }
+        assertTrue(panelLabels().first { it.text=="模型 A" }.performClick())
+        assertTrue(panelLabels().first { it.text=="均衡" }.performClick())
+        assertTrue(panelLabels().first { it.text=="✓ 模型 A" }.performClick())
+        assertEquals("medium",value("selectedEffort"))
+        assertSame(modelsPanel,value("overlay"))
+        assertSame(modelsViewport,value("activeScroll"))
+        assertSame(save,panelLabels().first { it.text=="保存" })
+    }
+
+    @Test fun refreshingUsageAndProjectsKeepsTheirExistingPanels() {
+        for(name in listOf("usagePage","projectPicker")) {
+            val open=MainActivity::class.java.getDeclaredMethod(name,Boolean::class.javaPrimitiveType)
+                .apply { isAccessible=true }
+            open.invoke(activity,false)
+            val page=value("overlay")
+            val viewport=value("activeScroll")
+            open.invoke(activity,true)
+            assertSame(page,value("overlay"))
+            assertSame(viewport,value("activeScroll"))
+            call("closeOverlay")
+        }
     }
 
 }

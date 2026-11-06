@@ -10,7 +10,6 @@
     <application android:allowBackup="false" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:label="WatchChat" android:supportsRtl="true" android:usesCleartextTraffic="false" android:theme="@style/WatchChatTheme">
         <uses-library android:name="com.google.android.wearable" android:required="false" />
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
-        <provider android:name=".PairingProvider" android:authorities="${applicationId}.pairing" android:exported="true" android:permission="android.permission.DUMP" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:enableOnBackInvokedCallback="false" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

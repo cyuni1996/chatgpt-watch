@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 | Models and usage | Quickly select a model/reasoning effort and view account usage. |
 | Watch interaction | Crown scrolling, interactive back navigation, font/haptic settings and a silver-violet character theme. |
 
-Discover and pair on the LAN, or optionally use your own fixed domain and tunnel for Internet access.
+Discover and pair on the LAN, or use an HTTPS address and a one-time pairing code through your existing TCP tunnel.
 
 ## Getting started
 
@@ -52,7 +52,7 @@ Copy this request to an assistant with terminal access on your computer:
 
 ```text
 Please install https://github.com/cyuni1996/chatgpt-watch .
-Read AI_INSTALL.en.md first. Prefer the signed Release APK and verify SHA-256.
+Read AI_INSTALL.en.md first. Prefer the signed Release APK matching the companion source and verify its SHA-256.
 Preserve existing apps, pairing and drafts; verify by reading history.
 Tell me when I must unlock the watch, enable wireless debugging or compare codes.
 ```
@@ -62,10 +62,10 @@ The assistant follows the [installation runbook](AI_INSTALL.en.md) to check prer
 ### Manual installation and other options
 
 - **Manual setup:** [download, install and pair over LAN](docs/INSTALL.en.md).
-- **Internet access:** [fixed domain and Cloudflare Tunnel](docs/INSTALL.en.md#public-connection).
+- **Remote access:** [map the companion port and pair over the Internet](docs/INSTALL.en.md#internet-connection).
 - **Source changes:** [build instructions](docs/INSTALL.en.md#source-build) and [development guide](docs/DEVELOPMENT.md).
 
-Keep the computer, Codex and companion running. Run `Start Companion.cmd` after a reboot; daily chat does not require ADB.
+Keep the computer, Codex and companion running for daily use. Run `Start Companion.cmd` after a reboot. Press **L** for first-time LAN pairing or **P** for a one-time code over your TCP tunnel. The watch checks for stable releases on startup. Install updates manually with ADB.
 
 ## Controls
 
@@ -99,7 +99,7 @@ Check mutual network reachability, the running companion, firewall and mDNS. If 
 <details>
 <summary>Why can't I update an existing installation?</summary>
 
-In-place updates require the same application ID and signing key. Check the APK source before doing anything destructive. The public ID is `org.watchchat.app`, separate from private builds with another ID.
+In-place updates require the same application ID and signing key. The default ID is `org.watchchat.app`. To keep a custom ID for an existing installation, use the local setting in the same source checkout and sign with the original key.
 
 </details>
 

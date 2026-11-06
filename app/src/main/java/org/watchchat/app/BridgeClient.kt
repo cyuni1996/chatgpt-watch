@@ -2,14 +2,18 @@ package org.watchchat.app
 
 import org.json.JSONObject
 import java.net.URL
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import okhttp3.Call
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -17,9 +21,39 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class BridgeClient(
     val url: String, private val token: String, pin: String,
-    private val callFactory: Call.Factory? = null,
-    val mode: String = "lan"
+    private val callFactory: Call.Factory? = null
 ) {
+    companion object {
+        // First-use certificate probe. The handshake sends no HTTP or credentials.
+        // Subsequent requests require this exact certificate and a locally approved token.
+        fun probeLanCertificate(url: String): String {
+            val endpoint = URL(url)
+            val probeTrust = object : X509TrustManager {
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) =
+                    throw java.security.cert.CertificateException("不支持客户端证书")
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                    (chain.firstOrNull() ?: throw java.security.cert.CertificateException("缺少电脑证书")).checkValidity()
+                }
+            }
+            val probe = SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf<TrustManager>(probeTrust), null)
+            }
+            val host = endpoint.host.removeSurrounding("[", "]")
+            val port = endpoint.port.takeIf { it > 0 } ?: endpoint.defaultPort
+            return Socket().use { socket ->
+                socket.connect(InetSocketAddress(host,port),5000)
+                (probe.socketFactory.createSocket(socket,host,port,true) as SSLSocket).use { tls ->
+                    tls.soTimeout = 5000
+                    tls.startHandshake()
+                    certificateFingerprint(tls.session.peerCertificates.first().encoded)
+                }
+            }
+        }
+
+        private fun certificateFingerprint(encoded: ByteArray): String =
+            MessageDigest.getInstance("SHA-256").digest(encoded).joinToString("") { "%02x".format(it) }
+    }
     private val requestLock = Any()
     private var foreground = true
     private val requests = mutableSetOf<Call>()
@@ -41,12 +75,10 @@ class BridgeClient(
         },"bridge-cleanup").apply { isDaemon=true; start() }
     }
     private val expected = pin.lowercase()
-    private val host = URL(url).host
+    private val endpoint = url.toHttpUrl()
     init {
-        require(URL(url).protocol == "https") { "连接地址必须使用 https" }
+        require(endpoint.isHttps) { "连接地址必须使用 https" }
         require(expected.matches(Regex("[0-9a-f]{64}"))) { "证书指纹应为64位" }
-        require(mode in listOf("lan","public")) { "连接模式无效" }
-        if(mode=="public")ConnectionAddress.publicUrl(url)
     }
     private val trustManager = object : X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
@@ -54,7 +86,7 @@ class BridgeClient(
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
                 if (chain.isEmpty()) throw java.security.cert.CertificateException("缺少电脑证书")
                 chain[0].checkValidity()
-                val actual = MessageDigest.getInstance("SHA-256").digest(chain[0].encoded).joinToString("") { "%02x".format(it) }
+                val actual = certificateFingerprint(chain[0].encoded)
                 if (!MessageDigest.isEqual(actual.toByteArray(), expected.toByteArray())) {
                     throw java.security.cert.CertificateException("电脑证书不匹配，请重新配对")
                 }
@@ -64,13 +96,8 @@ class BridgeClient(
         init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
     }.socketFactory
     private val http = OkHttpClient.Builder()
-        .apply {
-            if(mode=="lan") {
-                sslSocketFactory(socketFactory, trustManager)
-                hostnameVerifier { hostname, _ -> hostname == host }
-            }
-            // Public domains use Android's CA store AND the standard hostname verifier.
-        }
+        .sslSocketFactory(socketFactory, trustManager)
+        .hostnameVerifier { hostname, _ -> hostname == endpoint.host }
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(25, TimeUnit.SECONDS)

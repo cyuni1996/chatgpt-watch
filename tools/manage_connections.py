@@ -1,19 +1,22 @@
-"""Local operator approval for watch pairing; no long-lived secret is printed."""
+"""Open a local pairing window or manage authorized watches."""
 import argparse,json,ssl,subprocess,sys,time,urllib.request,urllib.error
-from pathlib import Path
-from computer_runtime import ROOT,prepare_runtime
+from computer_runtime import ROOT,connection_address_lines,prepare_runtime
 
 def main():
     parser=argparse.ArgumentParser(description='管理手表配对与授权')
-    parser.add_argument('action',choices=['pair','devices','revoke'],nargs='?',default='pair')
+    parser.add_argument('action',choices=['pair','internet-code','devices','revoke'],nargs='?',default='pair')
     parser.add_argument('--device-id')
     args=parser.parse_args()
     directory,config,_,_=prepare_runtime()
     context=ssl.create_default_context(cafile=str(directory/'server.pem'));context.check_hostname=False
-    def request(path,data=None):
-        admin=json.loads((directory/'paired-devices.json').read_text(encoding='utf8'))['adminToken']
-        req=urllib.request.Request('https://127.0.0.1:'+str(config['port'])+'/api/connect/admin/'+path,
-            data=None if data is None else json.dumps(data).encode(),headers={'Authorization':'Bearer '+admin,'Content-Type':'application/json'})
+    def request(path,data=None,*,admin=True):
+        headers = {'Content-Type':'application/json'}
+        if admin:
+            token=json.loads((directory/'paired-devices.json').read_text(encoding='utf8'))['adminToken']
+            headers['Authorization']='Bearer '+token
+            path='admin/'+path
+        req=urllib.request.Request('https://127.0.0.1:'+str(config['port'])+'/api/connect/'+path,
+            data=None if data is None else json.dumps(data).encode(),headers=headers)
         with urllib.request.urlopen(req,context=context,timeout=8) as response:return json.load(response)
     try:request('devices')
     except (OSError,ValueError,KeyError):
@@ -29,19 +32,23 @@ def main():
     if args.action=='revoke':
         if not args.device_id:parser.error('请用 --device-id 指定要撤销的设备编号')
         request('revoke',{'deviceId':args.device_id});print('设备授权已撤销。');return
-    request('window',{'open':True});print('配对窗口已开启，有效期3分钟。\n在手表选择“局域网扫描”或填写已部署的公网域名。\n只允许核对码与手表完全一致的请求。')
-    deadline=time.monotonic()+180
-    try:
-        while time.monotonic()<deadline:
-            pending=request('pending')['requests']
-            if not pending:time.sleep(1);continue
-            for item in pending:
-                print('\n设备：'+item['deviceName']+' · '+('公网' if item['mode']=='public' else '局域网'))
-                print('核对码：'+item['code'])
-                answer=input('与手表相同则输入 y 允许；输入其他内容拒绝：').strip().lower()
-                request('decide',{'requestId':item['requestId'],'approve':answer=='y'})
-                if answer=='y':print('已允许，手表会自动保存连接。');return
-        print('配对窗口已到期。')
-    finally:request('window',{'open':False})
+    if args.action=='internet-code':
+        try:
+            code=request('internet',{})['code']
+        except urllib.error.HTTPError as error:
+            if error.code!=404:raise
+            raise SystemExit('请先重启新版电脑连接服务。') from error
+        print('外网配对码：'+'-'.join(code[i:i+4] for i in range(0,len(code),4)))
+        print('3 分钟内输入手表，使用一次后失效。')
+        return
+    if args.action=='pair':
+        print('\n'.join(connection_address_lines(config['port'])),flush=True)
+        if not request('info',admin=False).get('lanProofRequired'):
+            raise SystemExit('当前连接服务仍是旧版，请停止后重新启动，再开启局域网配对。')
+        window=request('window',{'open':True,'mode':'watch'})
+        if window.get('mode')!='watch':
+            request('window',{'open':False})
+            raise SystemExit('请先重启新版电脑连接服务。')
+        print('局域网配对已开启，有效期 3 分钟。请在手表上选择电脑并点“确认配对”。')
 
 if __name__=='__main__':main()

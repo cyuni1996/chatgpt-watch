@@ -1,17 +1,21 @@
 package org.watchchat.app
 
+import android.animation.ValueAnimator
 import android.Manifest
 import android.app.Activity
 import android.app.Dialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -26,6 +30,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
+import android.view.animation.LinearInterpolator
 import android.graphics.Rect
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -34,12 +39,17 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -56,7 +66,11 @@ class MainActivity : Activity() {
     private val ui = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("connection", MODE_PRIVATE) }
     private val computers by lazy { ComputerProfiles(prefs) }
+    private var releaseCheck: Call? = null
     private var lanDiscovery:LanDiscovery?=null
+    private var restartLanScan: (() -> Unit)? = null
+    private var pauseLanScan: (() -> Unit)? = null
+    private var scanProgressAnimator: ValueAnimator? = null
     private var pairingClient:BridgeClient?=null
     private var connectionEpoch=0
     private var pausedPairTarget:ConnectionCandidate?=null
@@ -110,7 +124,7 @@ class MainActivity : Activity() {
     private lateinit var titleText: TextView
     private lateinit var statusText: TextView
     private lateinit var clock: TextView
-    private lateinit var chatScroll: ScrollView
+    private lateinit var chatScroll: WatchScrollView
     private lateinit var chat: LinearLayout
     private lateinit var input: EditText
     private lateinit var mic: GlyphButton
@@ -136,7 +150,8 @@ class MainActivity : Activity() {
     private data class PanelSnapshot(
         val view: View, val name: String, val scroll: ScrollView?,
         val drawerScroll: ScrollView?, val drawerRows: LinearLayout?, val search: EditText?,
-        val approvalToken: String, val approvalLabel: TextView?, val approvalButtons: List<TextView>,val detail:DetailTarget?
+        val approvalToken: String, val approvalLabel: TextView?, val approvalButtons: List<TextView>,val detail:DetailTarget?,
+        val restartLanScan: (() -> Unit)?
     )
     private val panelHistory = java.util.ArrayDeque<PanelSnapshot>()
     private val touchGestures by lazy {
@@ -145,7 +160,7 @@ class MainActivity : Activity() {
             override fun onDoubleTap(event:MotionEvent):Boolean {
                 if(!gestureEligible || mode!="chat" || recording!=null)return false
                 doubleTapTriggered=true
-                chatScroll.fullScroll(View.FOCUS_DOWN); latest.visibility=View.GONE
+                chatScroll.scrollToEnd(); latest.visibility=View.GONE
                 return true
             }
         }).apply { setIsLongpressEnabled(false) }
@@ -160,6 +175,10 @@ class MainActivity : Activity() {
     private var drawerCursor: String? = null
     private var drawerRequest = 0
     private var drawerLoading = false
+    private var drawerError = ""
+    private var usageRequest = 0
+    private var projectRequest = 0
+    private var chatLinkRequest = 0
     private var drawerProjects = JSONArray()
     private val expandedProjects = mutableSetOf<String>()
     private val drawerStatusLabels = mutableMapOf<String,TextView>()
@@ -177,7 +196,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.setDecorFitsSystemWindows(false)
         computers.migrateLegacy()
-        importPairing()
         sessionId=computers.getState("sessionId")
         setupClient()
         createLayout()
@@ -187,24 +205,11 @@ class MainActivity : Activity() {
         if (client == null) ui.post { computersPage() }
     }
 
-    private fun importPairing() {
-        val file=File(filesDir,"pairing.json")
-        if(!file.exists())return
-        runCatching {
-            val data=JSONObject(file.readText())
-            val url=data.getString("url"); val token=data.getString("token"); val pin=data.getString("certificateSha256")
-            BridgeClient(url,token,pin)
-            val id=data.optString("computerId").ifBlank { UUID.nameUUIDFromBytes(pin.toByteArray(Charsets.UTF_8)).toString() }
-            val name=data.optString("computerName").ifBlank { "电脑 ${computers.all().size+1}" }
-            computers.save(ComputerProfile(id,name,url,token,pin))
-            file.delete()
-        }.onFailure { localError="配对信息无效，请重新连接电脑" }
-    }
     private fun setupClient() {
-        client=runCatching { computers.active()?.let { BridgeClient(it.url,it.token,it.pin,mode=it.mode) } }.getOrNull()
+        client=runCatching { computers.active()?.let { BridgeClient(it.url,it.token,it.pin) } }.getOrNull()
     }
     private fun connectComputer(profile: ComputerProfile) {
-        val next=BridgeClient(profile.url,profile.token,profile.pin,mode=profile.mode)
+        val next=BridgeClient(profile.url,profile.token,profile.pin)
         saveDraft()
         computers.save(profile)
         foregroundGeneration++; ui.removeCallbacksAndMessages(null); approvalPopupQueued=false; shownApprovals.clear()
@@ -224,10 +229,10 @@ class MainActivity : Activity() {
         foregroundGeneration++; resumed=true; pollFailures=0; approvalPopupQueued=false; shownApprovals.clear()
         if(pool.isShutdown)pool=Executors.newFixedThreadPool(3)
         client?.setForeground(true)
+        checkForRelease()
         updateControls()
         ui.removeCallbacks(poll); ui.post(poll)
-        if(mode=="drawer")loadDrawer(true)
-        else if(mode=="lan-scan")lanScanPage()
+        if(mode=="drawer")loadDrawer(true,keepPosition=true)
         else if(mode=="pair-device")pausedPairTarget?.let { pairingPaused(it) }
         else if(mode=="projects")projectPicker(projectPickerCreatesChat)
         else if(mode=="usage")usagePage()
@@ -250,12 +255,36 @@ class MainActivity : Activity() {
     }
     override fun onDestroy() {
         backMotion.cancel()
+        releaseCheck?.cancel()
         stopConnectionTasks()
         ui.removeCallbacksAndMessages(null); client?.setForeground(false); pool.shutdownNow()
         releasePlayback()
         approvalDialog?.dismiss(); approvalDialog=null
         panelHistory.clear()
         super.onDestroy()
+    }
+    private fun checkForRelease() {
+        if (releaseCheck != null) return
+        val network = getSystemService(ConnectivityManager::class.java) ?: return
+        val capabilities = network.getNetworkCapabilities(network.activeNetwork) ?: return
+        if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return
+        val installed = packageManager.getPackageInfo(packageName,0).versionName.orEmpty()
+        releaseCheck = ReleaseUpdates.request().also { call ->
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, error: IOException) = Unit
+
+                override fun onResponse(call: Call, response: Response) {
+                    val newer = response.use { runCatching { ReleaseUpdates.newerVersion(it,installed) }.getOrNull() }
+                        ?: return
+                    ui.post {
+                        if (resumed && !isDestroyed && prefs.getString("notifiedRelease",null) != newer) {
+                            prefs.edit().putString("notifiedRelease",newer).apply()
+                            Toast.makeText(this@MainActivity,"发现新版本 v$newer，请在 GitHub Release 手动更新",Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            })
+        }
     }
     private fun schedulePoll() {
         ui.removeCallbacks(poll)
@@ -340,10 +369,11 @@ class MainActivity : Activity() {
             gestureHandled=false
             swipeStartX=event.rawX; swipeStartY=event.rawY; swipeClaimed=false; usageSwipeClaimed=false
             usageSwipeEligible=overlay==null && recording==null && event.y in dp(12).toFloat()..(watchLayout.chatTop+watchLayout.chatButton).toFloat()
-            val protected=onInteractiveControl(input,event.rawX.toInt(),event.rawY.toInt()) || onInteractiveControl(mic,event.rawX.toInt(),event.rawY.toInt()) || onInteractiveControl(send,event.rawX.toInt(),event.rawY.toInt()) || onInteractiveControl(modelText,event.rawX.toInt(),event.rawY.toInt())
+            val x=event.rawX.toInt(); val y=event.rawY.toInt()
+            val protected=overlay==null && listOf(input,mic,send,modelText).any { onInteractiveControl(it,x,y) }
             protectedControl=protected
-            swipeEligible=recording==null && !protected && !onInteractiveControl(root,event.rawX.toInt(),event.rawY.toInt(),textOnly=true)
-            gestureEligible=recording==null && !onInteractiveControl(root,event.rawX.toInt(),event.rawY.toInt(),textOnly=overlay!=null) && (overlay!=null || event.y in chatScroll.top.toFloat()..chatScroll.bottom.toFloat())
+            swipeEligible=recording==null && !protected && !onInteractiveControl(overlay ?: root,x,y,textOnly=true)
+            gestureEligible=overlay==null && recording==null && !onInteractiveControl(root,x,y) && event.y in chatScroll.top.toFloat()..chatScroll.bottom.toFloat()
         }
         if(event.pointerCount>1) { gestureEligible=false; swipeEligible=false; usageSwipeEligible=false }
         val dx=event.rawX-swipeStartX; val dy=event.rawY-swipeStartY
@@ -405,7 +435,7 @@ class MainActivity : Activity() {
         return super.onKeyDown(keyCode,event)
     }
     override fun onKeyLongPress(keyCode:Int,event:KeyEvent):Boolean {
-        if(appShortcutKey(keyCode)) { shortcutLongPressed=true;hideKeyboard();if(overlay!=null)navigateBack() else { chatScroll.fullScroll(View.FOCUS_DOWN);latest.visibility=View.GONE };return true }
+        if(appShortcutKey(keyCode)) { shortcutLongPressed=true;hideKeyboard();if(overlay!=null)navigateBack() else { chatScroll.scrollToEnd();latest.visibility=View.GONE };return true }
         return super.onKeyLongPress(keyCode,event)
     }
     override fun onKeyUp(keyCode:Int,event:KeyEvent):Boolean {
@@ -494,12 +524,12 @@ class MainActivity : Activity() {
         root.findViewWithTag<View>("scroll-feedback")?.bringToFront()
         clock=text("",8f,muted).apply { gravity=Gravity.CENTER }
         root.addView(clock,FrameLayout.LayoutParams(dp(60),dp(14),Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin=dp(8) })
-        latest=action("↓ 最新消息") { chatScroll.fullScroll(View.FOCUS_DOWN); latest.visibility=View.GONE }.apply { textSize=9f; minHeight=0; visibility=View.GONE }
+        latest=action("↓ 最新消息") { chatScroll.scrollToEnd(); latest.visibility=View.GONE }.apply { textSize=9f; minHeight=0; visibility=View.GONE }
         root.addView(latest,FrameLayout.LayoutParams(dp(82),dp(26),Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=metrics.chatBottom+metrics.chatComposerHeight+dp(3) })
         chatScroll.setOnScrollChangeListener { _: View, _: Int, _: Int, _: Int, _: Int -> if(atBottom())latest.visibility=View.GONE }
         setContentView(root)
         root.requestFocus()
-        main.addOnLayoutChangeListener { _,_,_,_,bottom,_,_,_,oldBottom -> if(bottom!=oldBottom && atBottom())chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) } }
+        main.addOnLayoutChangeListener { _,_,_,_,bottom,_,_,_,oldBottom -> if(bottom!=oldBottom && atBottom())chatScroll.post { chatScroll.scrollToEnd() } }
     }
 
     private fun atBottom() = chat.height-chatScroll.scrollY-chatScroll.height < dp(8)
@@ -605,7 +635,7 @@ class MainActivity : Activity() {
         val signature=messages.toString()+state.optBoolean("hasOlder")
         val changedSession=lastSession!=sessionId
         if(!force && !changedSession && signature==lastChat)return
-        val interacting=(chatScroll as WatchScrollView).interacting || backMotion.busy
+        val interacting=chatScroll.interacting || backMotion.busy
         val follow=changedSession || (atBottom() && !interacting)
         val oldY=chatScroll.scrollY; val oldHeight=chat.height
         val ids=(0 until messages.length()).map { messages.getJSONObject(it).getString("id") }
@@ -644,8 +674,16 @@ class MainActivity : Activity() {
             if(body.tag!=raw) { body.text=ChatText.format(raw); body.tag=raw }
         }
         lastChat=signature; lastSession=sessionId
+        val renderedSession=sessionId
         chatScroll.post {
-            when { changedSession || follow -> chatScroll.fullScroll(View.FOCUS_DOWN); older -> chatScroll.scrollTo(0,oldY+(chat.height-oldHeight)); else -> { chatScroll.scrollTo(0,oldY); if(!force)latest.visibility=View.VISIBLE } }
+            if(renderedSession!=sessionId || signature!=lastChat)return@post
+            when {
+                changedSession -> chatScroll.scrollToEnd()
+                older -> chatScroll.scrollTo(0,oldY+(chat.height-oldHeight))
+                follow && !chatScroll.interacting && !backMotion.busy -> chatScroll.scrollToEnd()
+                !appendOnly && !chatScroll.interacting -> chatScroll.scrollTo(0,oldY)
+            }
+            if(!force && !atBottom())latest.visibility=View.VISIBLE
         }
         val lastAssistant=(messages.length()-1 downTo 0).map { messages.getJSONObject(it) }.firstOrNull { it.optString("role")=="assistant" }
         val voiceId=lastAssistant?.optString("id") ?: ""
@@ -667,15 +705,27 @@ class MainActivity : Activity() {
     private fun projectPicker(create: Boolean) {
         projectPickerCreatesChat=create
         val selected=sessionId
-        val page=panel("projects"); pageHeader(page,"选择项目")
+        val page=contentPage("projects","选择项目")
         val picker=overlay
-        val scroll=scrollView(); val list=column()
-        page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f)); scroll.addView(list)
-        list.addView(text("正在读取电脑项目…",11f,muted))
+        val generation=++projectRequest
+        val list=contentScroll(page).getChildAt(0) as LinearLayout
+        val refresh=list.findViewWithTag<TextView>("projects-refresh")
+        if(refresh==null) {
+            list.removeAllViews()
+            list.addView(text("正在读取电脑项目…",11f,muted))
+        } else {
+            refresh.text="正在刷新…"
+            for(i in 0 until list.childCount)list.getChildAt(i).isEnabled=false
+        }
+        fun current()=overlay===picker && generation==projectRequest
         work {
             val value=try { requestClient().json("/api/projects") } catch(error:Exception) {
                 postResult {
-                    if(overlay===picker) {
+                    if(current() && refresh!=null) {
+                        refresh.text="重试刷新"
+                        for(i in 0 until list.childCount)list.getChildAt(i).isEnabled=true
+                        toast(error.message ?: "项目读取失败")
+                    } else if(current()) {
                         list.removeAllViews()
                         list.addView(text(error.message ?: "项目读取失败",11f,muted))
                         list.addView(action("重新读取项目") { projectPicker(create) })
@@ -684,14 +734,14 @@ class MainActivity : Activity() {
                 return@work
             }
             postResult {
-                if(overlay!==picker)return@postResult
+                if(!current())return@postResult
                 list.removeAllViews()
                 list.addView(text("发送第一条消息后创建电脑会话",10f,muted).apply { gravity=Gravity.CENTER; setPadding(0,dp(6),0,dp(5)) })
                 var choosing=false
                 fun option(id:String?,name:String) {
                     val selectedProject=!create && (if(state.isNull("projectId"))null else state.optString("projectId"))==id
                     val button=action((if(selectedProject)"✓ " else "")+name) {
-                        if(!choosing) {
+                        if(!choosing && overlay===picker && selected==sessionId) {
                             choosing=true
                             work {
                                 try {
@@ -721,13 +771,18 @@ class MainActivity : Activity() {
                 val projects=value.getJSONArray("projects")
                 for(i in 0 until projects.length()) { val item=projects.getJSONObject(i); option(item.getString("id"),item.getString("name")) }
                 option(null,"不选项目")
-                list.addView(action("刷新项目") { projectPicker(create) })
+                list.addView(action("刷新项目") { if(!choosing)projectPicker(create) }.apply { tag="projects-refresh" })
             }
         }
     }
     private fun linkChat(threadId: String) {
         hideKeyboard()
-        work { val value=requestClient().json("/api/session/link",JSONObject().put("threadId",threadId)); postResult { setSession(value) } }
+        val source=overlay
+        val generation=++chatLinkRequest
+        work {
+            val value=requestClient().json("/api/session/link",JSONObject().put("threadId",threadId))
+            postResult { if(overlay===source && generation==chatLinkRequest)setSession(value) }
+        }
     }
 
     private fun sendMessage() {
@@ -745,7 +800,7 @@ class MainActivity : Activity() {
                 prefs.edit().remove(computers.stateKey("pendingText:$selected")).remove(computers.stateKey("pendingId:$selected")).apply(); sending=false
                 if(selected==sessionId) {
                     if(input.text.toString().trim()==value)input.setText("")
-                    state=result; localError=""; updateMessages(); updateControls(); chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
+                    state=result; localError=""; updateMessages(); updateControls(); chatScroll.post { chatScroll.scrollToEnd() }
                 }
                 schedulePoll()
             }
@@ -755,10 +810,13 @@ class MainActivity : Activity() {
     private fun detachPanel() {
         if(backMotion.busy)backMotion.cancel()
         stopConnectionTasks()
+        restartLanScan=null
+        pauseLanScan=null
         ui.removeCallbacks(searchLater); ui.removeCallbacks(drawerStatusLater); drawerRequest++
         approvalDialog?.dismiss(); approvalDialog=null
         overlay?.let { it.animate().cancel();it.alpha=1f;it.translationX=0f; (it.parent as? ViewGroup)?.removeView(it) }
         overlay=null; drawerRows=null; drawerScroll=null; search=null; mode="chat"
+        exposeChatAccessibility(true)
         openApprovalToken=""; approvalStateLabel=null; approvalActions.clear()
         activeScroll=if(::chatScroll.isInitialized)chatScroll else null
     }
@@ -771,10 +829,11 @@ class MainActivity : Activity() {
         openApprovalToken=previous.approvalToken; approvalStateLabel=previous.approvalLabel
         approvalActions.addAll(previous.approvalButtons)
         detailTarget=previous.detail
+        restartLanScan=previous.restartLanScan
         root.addView(previous.view,FrameLayout.LayoutParams(-1,-1))
+        exposeChatAccessibility(false)
         if(mode=="approval")showApprovalDialog()
         if(mode=="drawer") { if(drawerLoading)loadDrawer(true) else { drawDrawerRows(); ui.post(drawerStatusLater) } }
-        else if(mode=="lan-scan")lanScanPage()
         else if(mode=="pair-device")pausedPairTarget?.let { pairingPaused(it) }
         updateControls()
     }
@@ -787,7 +846,7 @@ class MainActivity : Activity() {
         val current=overlay
         if(current!=null && mode!=name)panelHistory.addLast(PanelSnapshot(
             current,mode,activeScroll,drawerScroll,drawerRows,search,
-            openApprovalToken,approvalStateLabel,approvalActions.toList(),detailTarget
+            openApprovalToken,approvalStateLabel,approvalActions.toList(),detailTarget,restartLanScan
         ))
         detachPanel(); hideKeyboard(); mode=name; activeScroll=null
         val shade=FrameLayout(this).apply { background=DragonTheme.backdrop(this@MainActivity,true) }
@@ -796,12 +855,18 @@ class MainActivity : Activity() {
         }
         shade.addView(page,FrameLayout.LayoutParams(-1,-1))
         root.addView(shade,FrameLayout.LayoutParams(-1,-1)); overlay=shade
+        exposeChatAccessibility(false)
         if(resumed && backMotion.enabled(shade)) {
             shade.alpha=.92f;shade.translationX=dp(12).toFloat()
             shade.animate().alpha(1f).translationX(0f).setDuration(180).start()
         }
 
         return page
+    }
+    private fun exposeChatAccessibility(visible:Boolean) {
+        val mode=if(visible)View.IMPORTANT_FOR_ACCESSIBILITY_AUTO else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        if(::chatPage.isInitialized)chatPage.importantForAccessibility=mode
+        if(::latest.isInitialized)latest.importantForAccessibility=mode
     }
     private fun headerRow(page:LinearLayout,label:String,left:View,right:View?=null) {
         val top=row()
@@ -816,6 +881,15 @@ class MainActivity : Activity() {
     private fun pageHeader(page: LinearLayout, label: String) {
         headerRow(page,label,icon("back","返回上一页") { navigateBack() })
     }
+    private fun contentPage(name:String,title:String):LinearLayout =
+        (if(mode==name)(overlay as? FrameLayout)?.getChildAt(0) as? LinearLayout else null)
+            ?: panel(name).also { pageHeader(it,title) }
+
+    private fun contentScroll(page:LinearLayout):WatchScrollView =
+        page.getChildAt(1) as? WatchScrollView ?: scrollView().also { scroll ->
+            scroll.addView(column())
+            page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        }
 
     private fun openDrawer() {
         val page=panel("drawer")
@@ -832,10 +906,22 @@ class MainActivity : Activity() {
         val field=search!!
         field.visibility=if(drawerSearchExpanded || drawerQuery.isNotBlank())View.VISIBLE else View.GONE
         val tabs=row().apply { background=shape(0xC0252035.toInt(),14);setPadding(dp(2),dp(2),dp(2),dp(2)) }
+        fun updateTab(tab:TextView,selected:Boolean) {
+            tab.isSelected=selected
+            tab.setTextColor(if(selected)accent else muted)
+            tab.background=shape(if(selected)0xFF493B61.toInt() else Color.TRANSPARENT,12)
+        }
         for((key,label) in listOf("all" to "全部","pinned" to "置顶","archived" to "归档")) {
             tabs.addView(text(label,10f,if(drawerTab==key)accent else muted).apply {
-                gravity=Gravity.CENTER; background=shape(if(drawerTab==key)0xFF493B61.toInt() else Color.TRANSPARENT,12); contentDescription="会话分类：$label"; isSelected=drawerTab==key; isClickable=true
-                setOnClickListener { drawerTab=key; openDrawer() }
+                gravity=Gravity.CENTER; contentDescription="会话分类：$label"; isClickable=true
+                updateTab(this,drawerTab==key)
+                setOnClickListener {
+                    if(drawerTab!=key) {
+                        drawerTab=key
+                        for(i in 0 until tabs.childCount)updateTab(tabs.getChildAt(i) as TextView,tabs.getChildAt(i)===this)
+                        loadDrawer(true)
+                    }
+                }
             },LinearLayout.LayoutParams(0,dp(28),1f))
         }
         val tools=row()
@@ -857,22 +943,37 @@ class MainActivity : Activity() {
         page.addView(drawerScroll,LinearLayout.LayoutParams(-1,0,1f))
         drawerItems=JSONArray(); drawerCursor=null; loadDrawer(true)
     }
-    private fun loadDrawer(reset: Boolean) {
+    private fun loadDrawer(reset:Boolean,keepPosition:Boolean=false) {
         val query=drawerQuery; val tab=drawerTab; val generation=++drawerRequest
         ui.removeCallbacks(drawerStatusLater)
-        if(reset)drawerItems=JSONArray()
-        drawerLoading=true; drawDrawerRows()
+        if(reset && !keepPosition) {
+            drawerItems=JSONArray();drawerCursor=null
+            drawerScroll?.scrollTo(0,0)
+        }
+        drawerError=""
+        drawerLoading=true
+        if(!keepPosition || drawerItems.length()==0)drawDrawerRows()
         val cursor=if(reset)null else drawerCursor
         work {
-            val path="/api/conversations?tab=$tab&query="+URLEncoder.encode(query,"UTF-8")+(if(cursor==null)"" else "&cursor="+URLEncoder.encode(cursor,"UTF-8"))
-            val value=requestClient().json(path)
-            postResult {
-                if(mode!="drawer" || generation!=drawerRequest)return@postResult
+            try {
+                val path="/api/conversations?tab=$tab&query="+URLEncoder.encode(query,"UTF-8")+(if(cursor==null)"" else "&cursor="+URLEncoder.encode(cursor,"UTF-8"))
+                val value=requestClient().json(path)
                 val items=value.getJSONArray("conversations")
-                drawerProjects=value.optJSONArray("projects") ?: JSONArray()
-                for(i in 0 until items.length())drawerItems.put(items.getJSONObject(i))
-                drawerCursor=if(value.isNull("nextCursor"))null else value.optString("nextCursor").ifEmpty { null }
-                drawerLoading=false; drawDrawerRows(); ui.postDelayed(drawerStatusLater,5000)
+                postResult {
+                    if(mode!="drawer" || generation!=drawerRequest)return@postResult
+                    if(reset)drawerItems=JSONArray()
+                    drawerProjects=value.optJSONArray("projects") ?: JSONArray()
+                    for(i in 0 until items.length())drawerItems.put(items.getJSONObject(i))
+                    drawerCursor=if(value.isNull("nextCursor"))null else value.optString("nextCursor").ifEmpty { null }
+                    drawerLoading=false; drawDrawerRows(); ui.postDelayed(drawerStatusLater,5000)
+                }
+            } catch(error:Exception) {
+                postResult {
+                    if(mode!="drawer" || generation!=drawerRequest)return@postResult
+                    drawerLoading=false
+                    drawerError=error.message?.take(100) ?: "无法读取聊天"
+                    drawDrawerRows()
+                }
             }
         }
     }
@@ -914,7 +1015,6 @@ class MainActivity : Activity() {
     private fun drawDrawerRows() {
         val list=drawerRows ?: return
         val compact=prefs.getBoolean("ui.compactList",false)
-        val scrollY=drawerScroll?.scrollY ?: 0
         list.removeAllViews();drawerStatusLabels.clear()
         val groups=linkedMapOf<String,MutableList<JSONObject>>()
         val names=mutableMapOf<String,String>()
@@ -954,9 +1054,11 @@ class MainActivity : Activity() {
             })
         }
         if(drawerLoading)list.addView(text("正在读取…",11f,muted).apply { gravity=Gravity.CENTER; setPadding(0,dp(14),0,0) })
-        else if(drawerItems.length()==0)list.addView(text("没有找到聊天",12f,muted).apply { gravity=Gravity.CENTER; setPadding(0,dp(14),0,0) })
-        if(!drawerLoading && drawerCursor!=null)list.addView(action("加载更多") { loadDrawer(false) })
-        drawerScroll?.post { drawerScroll?.scrollTo(0,scrollY) }
+        else if(drawerError.isNotEmpty()) {
+            list.addView(text(drawerError,11f,muted))
+            list.addView(action("重新读取聊天") { loadDrawer(true,keepPosition=true) })
+        } else if(drawerItems.length()==0)list.addView(text("没有找到聊天",12f,muted).apply { gravity=Gravity.CENTER; setPadding(0,dp(14),0,0) })
+        if(!drawerLoading && drawerError.isEmpty() && drawerCursor!=null)list.addView(action("加载更多") { loadDrawer(false) })
     }
 
     private fun createContextControls() {
@@ -1026,6 +1128,7 @@ class MainActivity : Activity() {
     }
     private fun manage(id: String, operation: String, title: String?=null) {
         if(!resumed || managing)return
+        val source=overlay
         managing=true
         work {
             try { requestClient().json("/api/conversation/action",JSONObject().put("threadId",id).put("action",operation).put("title",title)) }
@@ -1035,10 +1138,12 @@ class MainActivity : Activity() {
                 toast(when(operation) { "rename"->"名称已同步到电脑"; "pin"->"已置顶"; "unpin"->"已取消置顶"; "archive"->"已归档"; else->"已恢复" })
                 detailTarget?.takeIf { it.id==id }?.let { target ->
                     when(operation) { "rename"->target.data.put("title",title);"pin","unpin"->target.data.put("pinned",operation=="pin");"archive","restore"->target.data.put("archived",operation=="archive") }
-                    if(operation=="archive" && id==currentThreadId()) { closeOverlay();openDrawer() }
-                    else { if(mode!="context")popPanel();showConversationDetail(target) }
+                    if(overlay===source) {
+                        if(operation=="archive" && id==currentThreadId()) { closeOverlay();openDrawer() }
+                        else { if(mode!="context")popPanel();showConversationDetail(target) }
+                    }
                 }
-                fetch();if(mode=="drawer")loadDrawer(true)
+                fetch();if(mode=="drawer")loadDrawer(true,keepPosition=true)
             }
         }
     }
@@ -1065,32 +1170,41 @@ class MainActivity : Activity() {
         val generation=++modelRequest
         val settings=state.optJSONObject("settings") ?: JSONObject()
         selectedModel=settings.optString("model"); selectedEffort=settings.optString("thinking")
-        val page=panel("models"); pageHeader(page,"模型与思考")
-        page.addView(text("正在读取可用模型…",12f,muted))
+        val page=contentPage("models","模型与思考")
+        val list=contentScroll(page).getChildAt(0) as LinearLayout
+        list.removeAllViews()
+        list.addView(text("正在读取可用模型…",12f,muted))
+        page.getChildAt(2)?.visibility=View.GONE
         work {
             try {
                 val result=requestClient().json("/api/models")
                 postResult { if(mode=="models" && generation==modelRequest) { models=result.getJSONArray("models");drawModels() } }
             } catch(error:Exception) {
                 postResult { if(mode=="models" && generation==modelRequest) {
-                    val retry=panel("models");pageHeader(retry,"模型与思考")
-                    retry.addView(text(error.message ?: "模型读取失败",12f,muted))
-                    retry.addView(action("重新读取模型") { openModels() })
+                    list.removeAllViews()
+                    list.addView(text(error.message ?: "模型读取失败",12f,muted))
+                    list.addView(action("重新读取模型") { openModels() })
                 } }
             }
         }
     }
     private fun effortName(value:String) = when(value) { "low"->"轻量"; "medium"->"均衡"; "high"->"深入"; "xhigh"->"更深入"; "max"->"最高"; "ultra"->"极致"; else->value }
     private fun drawModels() {
-        val position=if(mode=="models")activeScroll?.scrollY ?: 0 else 0
-        val page=panel("models"); pageHeader(page,"模型与思考")
-        val scroll=scrollView(); val list=column()
+        val page=contentPage("models","模型与思考")
+        val list=contentScroll(page).getChildAt(0) as LinearLayout
+        list.removeAllViews()
+        fun selectModel(id:String) {
+            if(selectedModel==id)return
+            selectedModel=id
+            selectedEffort=""
+            drawModels()
+        }
         list.addView(text("选择后，下次发送生效",10f,muted).apply { gravity=Gravity.CENTER })
         if(models.length()==0)list.addView(text("电脑暂未提供可选模型，仍可跟随电脑。",11f,muted))
-        list.addView(action((if(selectedModel.isEmpty())"✓ " else "")+"跟随电脑") { selectedModel=""; selectedEffort=""; drawModels() })
+        list.addView(action((if(selectedModel.isEmpty())"✓ " else "")+"跟随电脑") { selectModel("") })
         for(i in 0 until models.length()) {
             val model=models.getJSONObject(i); val id=model.getString("id")
-            list.addView(action((if(selectedModel==id)"✓ " else "")+model.getString("name")) { selectedModel=id; selectedEffort=""; drawModels() })
+            list.addView(action((if(selectedModel==id)"✓ " else "")+model.getString("name")) { selectModel(id) })
         }
         val chosen=(0 until models.length()).map { models.getJSONObject(it) }.firstOrNull { it.getString("id")==selectedModel }
         if(selectedModel.isNotBlank() && chosen==null)list.addView(text("当前模型暂不可选，请选择其他模型或跟随电脑。",11f,muted))
@@ -1100,58 +1214,76 @@ class MainActivity : Activity() {
             val efforts=chosen.getJSONArray("efforts")
             for(i in 0 until efforts.length()) { val value=efforts.getString(i); list.addView(action((if(selectedEffort==value)"✓ " else "")+effortName(value)) { selectedEffort=value; drawModels() }) }
         }
-        scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
         for(i in 0 until list.childCount)list.getChildAt(i).isEnabled=!modelsSaving
-        scroll.post { scroll.scrollTo(0,position) }
-        page.addView(action(if(modelsSaving)"正在保存…" else "保存",true) {
+        val save=page.getChildAt(2) as? TextView ?: action("保存",true) {
             if(modelsSaving)return@action
             val selected=sessionId
+            val source=overlay
             val model=selectedModel;val effort=selectedEffort
             modelsSaving=true;drawModels()
             work {
                 try {
                     val value=requestClient().json("/api/session/settings",JSONObject().put("sessionId",selected).put("model",model).put("thinking",effort))
-                    postResult { modelsSaving=false;if(selected==sessionId) { state=value;if(mode=="models")popPanel();updateControls();toast("已保存，下次发送生效") } }
-                } catch(error:Exception) { postResult { modelsSaving=false;if(mode=="models" && selected==sessionId) { drawModels();toast(error.message ?: "保存失败，请重试") } } }
+                    postResult { modelsSaving=false;if(selected==sessionId) { state=value;if(overlay===source)popPanel();updateControls();toast("已保存，下次发送生效") } }
+                } catch(error:Exception) { postResult { modelsSaving=false;if(overlay===source && selected==sessionId) { drawModels();toast(error.message ?: "保存失败，请重试") } } }
             }
-        }.apply { isEnabled=!modelsSaving })
+        }.also { page.addView(it) }
+        save.visibility=View.VISIBLE
+        save.text=if(modelsSaving)"正在保存…" else "保存"
+        save.isEnabled=!modelsSaving
     }
 
     private fun settingsPage() {
         val page=panel("settings"); pageHeader(page,"设置")
         val scroll=scrollView(); val list=column()
-        list.addView(action(if(prefs.getBoolean("autoRead",false))"自动朗读：开启" else "自动朗读：关闭") { prefs.edit().putBoolean("autoRead",!prefs.getBoolean("autoRead",false)).apply(); settingsPage() })
+        list.addView(preferenceToggle("autoRead","自动朗读"))
         list.addView(navigation("外观与阅读") { appearancePage() })
         list.addView(navigation("电脑连接") { computersPage() })
         list.addView(navigation("操作与手势") { inputHelp() })
-        list.addView(action("触感反馈："+if(prefs.getBoolean("ui.haptics",true))"开启" else "关闭") { prefs.edit().putBoolean("ui.haptics",!prefs.getBoolean("ui.haptics",true)).apply();settingsPage() })
-        list.addView(text("回复时发送位会变成停止按钮。需要选择时自动弹出确认窗口；关闭后可从对话详情重新打开。",11f,muted).apply { setPadding(0,dp(14),0,dp(8)) })
-        list.addView(text("WatchChat 0.13.0 · 龙娘主题",10f,muted).apply { gravity=Gravity.CENTER })
+        list.addView(preferenceToggle("ui.haptics","触感反馈",default=true))
+        val version=packageManager.getPackageInfo(packageName,0).versionName.orEmpty()
+        val name=applicationInfo.loadLabel(packageManager)
+        list.addView(text("$name $version".trimEnd(),10f,muted).apply {
+            gravity=Gravity.CENTER
+            setPadding(0,dp(10),0,0)
+        })
         scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+    }
+    private fun preferenceToggle(
+        key:String,label:String,on:String="开启",off:String="关闭",default:Boolean=false,onChange:()->Unit={}
+    ):TextView {
+        fun title(value:Boolean)="$label：${if(value)on else off}"
+        return action(title(prefs.getBoolean(key,default))) {}.apply {
+            setOnClickListener {
+                val value=!prefs.getBoolean(key,default)
+                prefs.edit().putBoolean(key,value).apply()
+                text=title(value)
+                onChange()
+            }
+        }
     }
     private fun refreshAppearance() {
         root.background=DragonTheme.backdrop(this)
         overlay?.background=DragonTheme.backdrop(this,true)
         panelHistory.forEach { it.view.background=DragonTheme.backdrop(this,true) }
-        updateMessages(true)
     }
     private fun appearancePage() {
         val page=panel("appearance");pageHeader(page,"外观与阅读")
         val scroll=scrollView();val list=column()
-        fun toggle(key:String,label:String,on:String,off:String) {
-            list.addView(action(label+"："+if(prefs.getBoolean(key,false))on else off) {
-                prefs.edit().putBoolean(key,!prefs.getBoolean(key,false)).apply()
-                refreshAppearance();appearancePage()
-            })
-        }
-        toggle("ui.quietBackground","背景","纯净阅读","龙娘插画")
-        toggle("ui.deepBackground","背景明暗","加深","标准")
-        toggle("ui.compactList","历史列表","紧凑","舒适")
-        list.addView(action("字体："+when(prefs.getInt("fontSize",13)) { 12->"较小";15->"较大";else->"标准" }) {
-            choices("聊天字号",listOf("较小","标准","较大")) { i ->
-                prefs.edit().putInt("fontSize",listOf(12,13,15)[i]).apply();updateMessages(true);appearancePage()
+        list.addView(preferenceToggle("ui.quietBackground","背景","纯净阅读","龙娘插画",onChange=::refreshAppearance))
+        list.addView(preferenceToggle("ui.deepBackground","背景明暗","加深","标准",onChange=::refreshAppearance))
+        list.addView(preferenceToggle("ui.compactList","历史列表","紧凑","舒适"))
+        val sizes=listOf(12,13,15)
+        val labels=listOf("较小","标准","较大")
+        val font=action("字体："+labels[sizes.indexOf(prefs.getInt("fontSize",13)).takeIf { it>=0 } ?: 1]) {}
+        font.setOnClickListener {
+            choices("聊天字号",labels) { i ->
+                prefs.edit().putInt("fontSize",sizes[i]).apply()
+                font.text="字体："+labels[i]
+                updateMessages(true)
             }
-        })
+        }
+        list.addView(font)
         list.addView(text("立即生效，并在下次打开时保留。纯净背景适合长文阅读；插画背景保持静态。",10f,muted).apply { setPadding(dp(4),dp(10),dp(4),dp(8)) })
         scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
     }
@@ -1171,10 +1303,19 @@ class MainActivity : Activity() {
         scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
     }
     private fun usagePage(force: Boolean=false) {
-        val page=panel("usage"); pageHeader(page,"账号额度")
-        val scroll=scrollView(); val list=column()
+        val page=contentPage("usage","账号额度")
+        val panelView=overlay
+        val generation=++usageRequest
+        val list=contentScroll(page).getChildAt(0) as LinearLayout
+        val refresh=list.findViewWithTag<TextView>("usage-refresh")
         val loading=text("正在读取电脑账号额度…",11f,muted).apply { gravity=Gravity.CENTER; setPadding(0,dp(24),0,dp(12)) }
-        list.addView(loading);scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        if(refresh==null) {
+            list.removeAllViews()
+            list.addView(loading)
+        } else {
+            refresh.text="正在刷新…"
+            refresh.isEnabled=false
+        }
         fun percent(value:Double)=if(value%1.0==0.0)value.toInt().toString() else String.format(Locale.CHINA,"%.1f",value)
         fun windowName(minutes:Int)=when { minutes==10080->"每周额度"; minutes==300->"5小时额度"; minutes>0 && minutes%1440==0->"${minutes/1440}天额度"; minutes>0 && minutes%60==0->"${minutes/60}小时额度"; minutes>0->"${minutes}分钟额度"; else->"用量额度" }
         fun date(value:Long)=SimpleDateFormat("M月d日 HH:mm",Locale.CHINA).format(Date(value*1000))
@@ -1182,7 +1323,7 @@ class MainActivity : Activity() {
             try {
                 val value=requestClient().json("/api/usage"+if(force)"?refresh=1" else "")
                 postResult {
-                    if(mode!="usage" || overlay==null)return@postResult
+                    if(mode!="usage" || overlay!==panelView || generation!=usageRequest)return@postResult
                     list.removeAllViews()
                     if(value.optBoolean("stale"))list.addView(text(value.optString("error"),10f,Color.rgb(242,173,146)).apply { setPadding(0,dp(5),0,dp(8)) })
                     val groups=value.optJSONArray("groups") ?: JSONArray()
@@ -1210,10 +1351,21 @@ class MainActivity : Activity() {
                     val time=runCatching { java.time.Instant.parse(value.optString("updatedAt")).epochSecond }.getOrNull()
                     if(time!=null)list.addView(text("更新："+date(time),9f,muted))
                     list.addView(text("这是账号共享额度，两端用量合并计算。",10f,muted).apply { setPadding(0,dp(9),0,dp(4)) })
-                    list.addView(action("刷新额度",true) { usagePage(true) })
+                    list.addView(action("刷新额度",true) { usagePage(true) }.apply { tag="usage-refresh" })
                 }
             } catch(error:Exception) {
-                postResult { if(mode=="usage") { loading.text=error.message ?: "读取额度失败"; list.addView(action("重新读取",true) { usagePage(true) }) } }
+                postResult {
+                    if(mode!="usage" || overlay!==panelView || generation!=usageRequest)return@postResult
+                    val message=error.message ?: "读取额度失败"
+                    if(refresh==null) {
+                        loading.text=message
+                        list.addView(action("重新读取",true) { usagePage(true) })
+                    } else {
+                        refresh.text="重试刷新"
+                        refresh.isEnabled=true
+                        toast(message)
+                    }
+                }
             }
         }
     }
@@ -1355,7 +1507,10 @@ class MainActivity : Activity() {
         list.addView(text("选择当前要连接的电脑",11f,muted).apply { setPadding(0,dp(6),0,dp(8)) })
         for(profile in computers.all()) {
             val item=row()
-            val host=if(profile.mode=="public")"公网 · "+runCatching { java.net.URI(profile.url).host }.getOrDefault("") else "局域网"
+            val host=when (profile.mode) {
+                "tunnel" -> "穿透 · "+java.net.URI(profile.url).rawAuthority
+                else -> "局域网"
+            }
             item.addView(action((if(profile.id==computers.activeId())"✓ " else "")+profile.name+"\n"+host) {
                 runCatching { connectComputer(profile) }.onFailure { toast(it.message ?: "连接信息不正确") }
             },LinearLayout.LayoutParams(0,-2,1f))
@@ -1363,151 +1518,390 @@ class MainActivity : Activity() {
             list.addView(item)
         }
         list.addView(action("局域网扫描",true) { lanScanPage() })
-        list.addView(action("公网连接") { publicConnectionPage() })
-        list.addView(text("两种模式可连接同一台电脑，对话和草稿继续保留。首次配对需在电脑核对并允许。",10f,muted).apply { setPadding(0,dp(10),0,0) })
+        list.addView(action("手动连接") { manualConnectionSettings() })
+        list.addView(action("外网连接") { internetConnectionPage() })
+        list.addView(text("扫描后可选择已有电脑或添加新电脑。局域网首次配对在手表确认。",10f,muted).apply { setPadding(0,dp(10),0,0) })
         scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
     }
-    private fun connectionSettings(profile: ComputerProfile?=null) {
-        if(profile==null) { publicConnectionPage();return }
+    private fun connectionSettings(profile: ComputerProfile) {
         val page=panel("connection-options");pageHeader(page,profile.name)
         val scroll=scrollView();val list=column()
         list.addView(action("局域网模式") {
             runCatching { connectComputer(profile.using("lan")) }.onFailure { lanScanPage(profile.id) }
         })
-        list.addView(action("公网模式") {
-            if(profile.publicUrl.isNotEmpty() || profile.mode=="public")runCatching { connectComputer(profile.using("public")) }.onFailure { toast(it.message ?: "连接失败") }
-            else publicConnectionPage(profile)
-        })
+        if (profile.address("tunnel").isNotEmpty()) {
+            list.addView(action("外网模式") {
+                runCatching { connectComputer(profile.using("tunnel")) }.onFailure { toast(it.message ?: "连接失败") }
+            })
+        }
+        list.addView(action("添加或更改外网地址") { internetConnectionPage(profile) })
         list.addView(action("重新扫描局域网") { lanScanPage(profile.id) })
-        list.addView(action("配置公网域名") { publicConnectionPage(profile) })
-        list.addView(action("手动配置（高级）") { manualConnectionSettings(profile) })
+        list.addView(action("手动连接") { manualConnectionSettings(profile) })
         scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
     }
+    private fun connectionField(hint: String, initial: String, type: Int): EditText = EditText(this).apply {
+        this.hint=hint; setText(initial); textSize=11f; setTextColor(ink); setHintTextColor(muted)
+        inputType=type; isSingleLine=true
+        background=shape(surface,12);setPadding(dp(10),dp(8),dp(10),dp(8))
+    }
     private fun manualConnectionSettings(profile: ComputerProfile?=null) {
-        val page=panel("connection"); pageHeader(page,if(profile==null)"添加电脑" else "修改电脑")
+        val page=panel("connection"); pageHeader(page,"手动连接")
         val scroll=scrollView(); val list=column()
-        fun field(hint:String,initial:String,secret:Boolean=false):EditText {
-            val value=EditText(this).apply {
-                this.hint=hint; setText(initial); textSize=11f; setTextColor(ink); setHintTextColor(muted)
-                if(secret)inputType=129
-                maxLines=3
-                background=shape(surface,12);setPadding(dp(10),dp(8),dp(10),dp(8))
-            }
-            list.addView(value,LinearLayout.LayoutParams(-1,-2)); return value
-        }
-        val name=field("电脑名称",profile?.name ?: "")
-        val url=field("https://电脑地址:8766",profile?.url ?: "")
-        val token=field("连接口令",profile?.token ?: "",true)
-        val pin=field("电脑证书指纹",profile?.pin ?: "")
-        list.addView(action("保存并连接",true) {
+        val previous=profile?.address("lan")?.let { runCatching { java.net.URI(it) }.getOrNull() }
+        val ip=connectionField("电脑 IP",previous?.host.orEmpty(),android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI)
+        val port=connectionField("端口",previous?.port?.takeIf { it>0 }?.toString() ?: "8766",android.text.InputType.TYPE_CLASS_NUMBER)
+        list.addView(ip); list.addView(port)
+        list.addView(action("连接",true) {
             runCatching {
-                connectComputer(ComputerProfile(profile?.id ?: UUID.randomUUID().toString(),name.text.toString().trim(),
-                    url.text.toString().trim(),token.text.toString().trim(),pin.text.toString().trim(),profile?.mode ?: "lan",profile?.lanUrl ?: "",profile?.publicUrl ?: ""))
+                val url=ConnectionAddress.manualLanUrl(ip.text.toString(),port.text.toString())
+                hideKeyboard()
+                confirmLanPairing(ConnectionCandidate(profile?.id.orEmpty(),profile?.name ?: "电脑",url,profile?.pin.orEmpty()))
             }.onFailure { toast(it.message ?: "连接信息不正确") }
         })
         scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
     }
 
-    private fun stopConnectionTasks() { connectionEpoch++;lanDiscovery?.stop();lanDiscovery=null;pairingClient?.setForeground(false);pairingClient=null }
-    private fun lanScanPage(onlyId:String?=null) {
-        val page=panel("lan-scan");pageHeader(page,"局域网扫描")
-        val scroll=scrollView();val list=column()
-        val status=text("正在查找同一Wi-Fi的电脑…",11f,muted);list.addView(status)
-        val results=column();list.addView(results)
-        list.addView(action("重新扫描") { lanScanPage(onlyId) })
-        list.addView(text("电脑需运行最新版连接服务。首次添加时，在电脑运行“开启电脑配对.cmd”。",10f,muted).apply { setPadding(0,dp(8),0,dp(6)) })
-        list.addView(action("手动配置（高级）") { manualConnectionSettings() })
-        scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        val generation=connectionEpoch;val seen=mutableSetOf<String>()
-        lanDiscovery=LanDiscovery(this,{ candidate ->
-            if(mode=="lan-scan" && generation==connectionEpoch && (onlyId==null || candidate.id==onlyId) && seen.add(candidate.id)) {
-                status.text="找到 ${seen.size} 台电脑"
-                results.addView(action(candidate.name) {
-                    val old=computers.all().firstOrNull { it.id==candidate.id }
-                    if(old!=null)runCatching {
-                        require(old.pin==candidate.pin) { "电脑证书已变化，请先核对并重新配对" }
-                        connectComputer(old.copy(url=candidate.url,mode="lan",lanUrl=candidate.url,publicUrl=if(old.mode=="public")old.url else old.publicUrl))
-                    }.onFailure { toast(it.message ?: "连接失败") }
-                    else startPairing(candidate)
-                })
-            }
-        },{ message -> if(mode=="lan-scan" && generation==connectionEpoch)status.text=if(seen.isEmpty())message+"\n未发现电脑" else message })
-        lanDiscovery?.start()
-    }
-    private fun publicConnectionPage(profile:ComputerProfile?=null) {
-        val page=panel("public-connect");pageHeader(page,"公网模式")
-        val scroll=scrollView();val list=column()
-        list.addView(text("输入已配置隧道的HTTPS域名",11f,muted).apply { setPadding(0,dp(8),0,dp(8)) })
-        val domain=EditText(this).apply {
-            hint="watch.example.com";textSize=12f;setTextColor(ink);setHintTextColor(muted);isSingleLine=true
-            inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-            setText(profile?.let { if(it.mode=="public")it.url else it.publicUrl } ?: "")
-            background=shape(surface,12);setPadding(dp(10),dp(8),dp(10),dp(8));contentDescription="公网域名"
+    private fun internetConnectionPage(profile: ComputerProfile?=null) {
+        val page = panel("internet-connect")
+        pageHeader(page,"外网连接")
+        val scroll = scrollView()
+        val list = column()
+        val address = connectionField("HTTPS 地址",profile?.address("tunnel").orEmpty(),
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI)
+        val codeField = connectionField("外网配对码","",
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS).apply {
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         }
-        list.addView(domain,LinearLayout.LayoutParams(-1,dp(40)))
-        list.addView(action("配对并连接",true) {
-            runCatching { val url=ConnectionAddress.publicUrl(domain.text.toString());hideKeyboard();startPairing(ConnectionCandidate(profile?.id ?: "",profile?.name ?: "公网电脑",url,"", "public")) }
-                .onFailure { toast(it.message ?: "域名无效") }
-        })
-        list.addView(text("电脑先运行公网隧道和“开启电脑配对.cmd”。未部署域名时，可先使用局域网扫描。",10f,muted).apply { setPadding(0,dp(10),0,dp(6)) })
-        scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-    }
-    private fun pairingPaused(target:ConnectionCandidate) {
-        val page=panel("pair-device");pageHeader(page,"电脑配对")
-        page.addView(text("配对已暂停",12f,muted).apply { gravity=Gravity.CENTER;setPadding(0,dp(16),0,dp(10)) })
-        page.addView(action("重新开始配对",true) { startPairing(target) })
-    }
-    private fun startPairing(target:ConnectionCandidate) {
-        val page=panel("pair-device");pageHeader(page,"电脑配对");pausedPairTarget=target
-        val scroll=scrollView();val list=column()
-        val label=text("正在连接 ${target.name}…",11f,muted);list.addView(label)
-        val code=text("",19f,accent,true).apply { gravity=Gravity.CENTER;setPadding(0,dp(12),0,dp(12));contentDescription="配对核对码" };list.addView(code)
-        val help=text("",11f,muted);list.addView(help)
-        list.addView(action("取消配对") { navigateBack() })
-        scroll.addView(list);page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        val generation=connectionEpoch
-        val claim=UUID.randomUUID().toString()+UUID.randomUUID().toString();val requestId=UUID.randomUUID().toString()
-        val transport=BridgeClient(target.url,claim,target.pin.ifBlank { "0".repeat(64) },mode=target.mode);pairingClient=transport
-        fun current()=resumed && mode=="pair-device" && generation==connectionEpoch
-        fun failure(error:Exception) { ui.post { if(current()) { label.text=error.message?.take(120) ?: "配对失败";help.text="请检查电脑连接服务和配对窗口，再返回重试。" } } }
-        pool.execute {
-            try {
-                val info=transport.json("/api/connect/info");val id=info.getString("computerId");val pin=info.getString("certificateSha256")
-                require(pin.matches(Regex("[a-f0-9]{64}")) && id.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "电脑身份信息无效" }
-                require(target.id.isEmpty() || target.id==id) { "此地址对应另一台电脑" }
-                require(target.mode!="lan" || target.pin==pin) { "电脑证书不一致" }
-                require(info.optBoolean("pairingOpen")) { "请先在电脑运行“开启电脑配对.cmd”" }
-                val hash=ConnectionAddress.hash(claim)
-                transport.json("/api/connect/requests",JSONObject().put("requestId",requestId).put("claimHash",hash).put("mode",target.mode).put("url",target.url).put("deviceName","手表 chatgpt"))
-                ui.post { if(current()) { label.text="请核对电脑上的同一组码";code.text=ConnectionAddress.code(id,pin,target.mode,target.url,requestId,hash);help.text="在电脑允许后会自动连接。\n配对有效期为3分钟。" } }
-                val deadline=System.currentTimeMillis()+180000
-                val pollPair=object:Runnable {
-                    override fun run() {
-                        if(!current())return
-                        if(System.currentTimeMillis()>deadline) { label.text="配对已过期，请返回重试";return }
-                        pool.execute {
-                            try {
-                                val result=transport.json("/api/connect/requests/$requestId")
-                                if(result.optString("state")=="approved") {
-                                    require(result.getString("computerId")==id && result.getString("certificateSha256")==pin) { "电脑身份发生变化" }
-                                    val token=result.getString("token");require(token.length>=32) { "设备授权无效" }
-                                    ui.post { if(current())runCatching {
-                                        val old=computers.all().firstOrNull { it.id==id }
-                                        require(old==null || old.pin==pin) { "电脑证书已变化，请先核对原连接" }
-                                        val lan=if(target.mode=="lan")target.url else old?.let { if(it.mode=="lan")it.url else it.lanUrl } ?: ""
-                                        val public=if(target.mode=="public")target.url else old?.let { if(it.mode=="public")it.url else it.publicUrl } ?: ""
-                                        connectComputer(ComputerProfile(id,result.getString("computerName"),target.url,token,pin,target.mode,lan,public))
-                                    }.onFailure { toast(it.message ?: "保存连接失败") } }
-                                } else if(result.optString("state")=="denied")ui.post { if(current())label.text="电脑已拒绝本次配对" }
-                                else ui.post { if(current())ui.postDelayed(this,1500) }
-                            } catch(e:Exception) { failure(e) }
+        val message = text("在电脑的启动窗口按 P 生成一次性配对码。",10f,muted)
+        val connect = action("配对并连接",true) {}
+        list.addView(address); list.addView(codeField); list.addView(connect); list.addView(message)
+        scroll.addView(list); page.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        connect.setOnClickListener {
+            val (url,code) = runCatching {
+                ConnectionAddress.internetUrl(address.text.toString()) to ConnectionAddress.internetCode(codeField.text.toString())
+            }.getOrElse {
+                message.text = it.message ?: "请检查地址和配对码"
+                return@setOnClickListener
+            }
+            hideKeyboard()
+            codeField.text.clear()
+            connect.isEnabled = false
+            message.text = "正在验证电脑…"
+            val generation = connectionEpoch
+            fun current() = resumed && mode == "internet-connect" && generation == connectionEpoch
+            fun showError(error: Throwable) {
+                connect.isEnabled = true
+                if (mode == "internet-connect") {
+                    message.text = if (current()) error.message?.take(100) ?: "外网连接失败，请重试。"
+                        else "连接已暂停，请重新输入配对码。"
+                }
+            }
+            pool.execute {
+                val probe = runCatching { BridgeClient.probeLanCertificate(url) }
+                ui.post {
+                    if (!current()) {
+                        showError(IllegalStateException("连接已暂停"))
+                        return@post
+                    }
+                    val pin = probe.getOrElse { showError(it); return@post }
+                    if (profile != null && profile.pin != pin) {
+                        showError(IllegalStateException("此地址的电脑证书与已配对电脑不同"))
+                        return@post
+                    }
+                    val transport = BridgeClient(url,"",pin)
+                    pairingClient = transport
+                    pool.execute {
+                        val result = runCatching {
+                            val nonce = UUID.randomUUID().toString().replace("-","")
+                            val response = transport.json("/api/connect/internet",JSONObject().put("nonce",nonce)
+                                .put("proof",ConnectionAddress.internetProof(code,"watch",pin,nonce)))
+                            val id = response.getString("computerId")
+                            val token = response.getString("token")
+                            require(id.matches(Regex("[A-Za-z0-9_-]{1,100}")) && token.length >= 32) { "电脑授权无效" }
+                            val proof = ConnectionAddress.internetProof(code,"computer",pin,nonce,id,token)
+                            require(java.security.MessageDigest.isEqual(proof.toByteArray(),response.getString("proof").toByteArray())) {
+                                "电脑未能证明外网配对码，请核对连接地址"
+                            }
+                            require(profile == null || profile.id == id) { "此地址对应另一台电脑" }
+                            ComputerProfile(id,response.getString("computerName"),url,token,pin,"tunnel")
+                        }
+                        ui.post {
+                            if (current()) result.mapCatching { authorized ->
+                                val old = computers.all().firstOrNull { it.id == authorized.id }
+                                require(old == null || old.pin == authorized.pin) { "电脑证书已变化，请先核对原连接" }
+                                connectComputer(old?.withAddress("tunnel",url)?.copy(token=authorized.token) ?: authorized)
+                            }.onFailure(::showError)
+                            else showError(IllegalStateException("连接已暂停"))
                         }
                     }
                 }
-                ui.post { if(current())pollPair.run() }
-            } catch(e:Exception) { failure(e) }
+            }
         }
     }
+
+    private fun stopConnectionTasks() {
+        connectionEpoch++
+        lanDiscovery?.let {
+            it.stop()
+            pauseLanScan?.invoke()
+        }
+        pauseLanScan=null
+        lanDiscovery = null
+        scanProgressAnimator?.cancel()
+        scanProgressAnimator = null
+        pairingClient?.setForeground(false)
+        pairingClient = null
+    }
+    private fun lanScanPage(onlyId: String? = null) {
+        val page = panel("lan-scan")
+        headerRow(page, "局域网扫描", icon("back", "返回上一页") { navigateBack() },
+            icon("refresh", "重新扫描") { restartLanScan?.invoke() })
+
+        val summary = column().apply {
+            background = shape(surface, 14)
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+        }
+        val title = text("", 12f, ink, true).apply { gravity = Gravity.CENTER; isSingleLine = true }
+        val detail = text("", 10f, muted).apply { gravity = Gravity.CENTER; isSingleLine = true }
+        val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progressTintList = ColorStateList.valueOf(accent)
+            progressBackgroundTintList = ColorStateList.valueOf(0x35D5BEF7)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        summary.addView(title)
+        summary.addView(detail)
+        summary.addView(progress, LinearLayout.LayoutParams(-1, dp(4)).apply { topMargin = dp(4) })
+        page.addView(summary, LinearLayout.LayoutParams(-1, -2))
+
+        val scroll = scrollView()
+        val list = column()
+        val results = column()
+        val empty = text("", 11f, muted).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(12), dp(8), dp(5))
+        }
+        list.addView(results)
+        list.addView(empty)
+        list.addView(action("手动连接") { manualConnectionSettings(computers.all().firstOrNull { it.id == onlyId }) })
+        scroll.addView(list)
+        page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        fun reconnect(profile: ComputerProfile, candidate: ConnectionCandidate) {
+            runCatching {
+                require(profile.pin == candidate.pin) { "电脑证书已变化，请核对原连接" }
+                connectComputer(profile.withAddress("lan",candidate.url))
+            }.onFailure { toast(it.message ?: "连接失败") }
+        }
+
+        restartLanScan = {
+            stopConnectionTasks()
+            for (index in 0 until results.childCount) results.getChildAt(index).animate().cancel()
+            results.removeAllViews()
+            scroll.scrollTo(0, 0)
+            title.text = "正在扫描局域网"
+            detail.text = "已找到 0 台电脑"
+            empty.text = "正在寻找同一 Wi-Fi 下的电脑…"
+            empty.visibility = View.VISIBLE
+            progress.progress = 0
+
+            val generation = connectionEpoch
+            val seen = mutableSetOf<String>()
+            pauseLanScan = {
+                title.text="扫描已暂停"
+                detail.text="已找到 ${seen.size} 台电脑"
+                empty.text="点右上角可重新扫描。"
+            }
+            val saved = computers.all().associateBy { it.id }
+            val animate = backMotion.enabled(progress)
+            var secondsLeft = LanDiscovery.SCAN_SECONDS
+            fun current() = mode == "lan-scan" && generation == connectionEpoch
+            fun showProgress() {
+                detail.text = "剩 ${secondsLeft} 秒 · 已找到 ${seen.size} 台"
+            }
+
+            lanDiscovery = LanDiscovery(this, found = { candidate ->
+                if (current() && (onlyId == null || candidate.id == onlyId) && seen.add(candidate.id)) {
+                    val old = saved[candidate.id]
+                    if (onlyId != null && old != null && old.pin == candidate.pin) {
+                        reconnect(old, candidate)
+                    }
+                    if (current()) {
+                        showProgress()
+                        empty.visibility = View.GONE
+                        val result = navigation(old?.name ?: candidate.name) {
+                            if (old != null) reconnect(old, candidate)
+                            else confirmLanPairing(candidate)
+                        }
+                        results.addView(result)
+                        if (backMotion.enabled(result)) {
+                            result.alpha = 0f
+                            result.translationY = dp(4).toFloat()
+                            result.animate().alpha(1f).translationY(0f).setDuration(160).start()
+                        }
+                    }
+                }
+            }, progress = { seconds ->
+                if (current()) {
+                    secondsLeft = seconds
+                    showProgress()
+                    if (animate && scanProgressAnimator == null) {
+                        scanProgressAnimator = ValueAnimator.ofInt(progress.progress, progress.max).apply {
+                            duration = seconds * 1000L
+                            interpolator = LinearInterpolator()
+                            addUpdateListener { progress.progress = it.animatedValue as Int }
+                            start()
+                        }
+                    } else if (!animate) {
+                        progress.progress = (LanDiscovery.SCAN_SECONDS - seconds) * progress.max / LanDiscovery.SCAN_SECONDS
+                    }
+                }
+            }, finished = { error ->
+                if (current()) {
+                    pauseLanScan=null
+                    scanProgressAnimator?.cancel()
+                    scanProgressAnimator = null
+                    title.text = if (error == null) "扫描完成" else "扫描暂不可用"
+                    detail.text = if (seen.isEmpty()) "未找到电脑" else "已找到 ${seen.size} 台电脑"
+                    if (seen.isEmpty()) empty.text = error ?: "确认电脑和手表在同一 Wi-Fi，再点右上角重试。"
+                    progress.progress = if (error == null) progress.max else 0
+                }
+            })
+            lanDiscovery?.start()
+        }
+        restartLanScan?.invoke()
+    }
+
+    private fun pairingPaused(target:ConnectionCandidate) {
+        val page=panel("pair-device");pageHeader(page,"连接电脑")
+        page.addView(text("连接已暂停",12f,muted).apply { gravity=Gravity.CENTER;setPadding(0,dp(16),0,dp(10)) })
+        page.addView(action("重新连接",true) { confirmLanPairing(target) })
+    }
+
+    private fun confirmLanPairing(target: ConnectionCandidate) {
+        val page = panel("pair-device")
+        pageHeader(page,"配对电脑")
+        pausedPairTarget = target
+        val scroll = scrollView()
+        val list = column()
+        val title = text("正在识别电脑…", 14f, ink, true).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(6), 0, dp(2))
+        }
+        val endpoint = text(target.url.removePrefix("https://"), 10f, muted).apply { gravity = Gravity.CENTER }
+        val message = text("", 11f, muted).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(6), dp(8), dp(4))
+        }
+        list.addView(title)
+        list.addView(endpoint)
+        list.addView(message)
+        list.addView(action("取消") { navigateBack() })
+        scroll.addView(list)
+        page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        val generation = connectionEpoch
+        fun current() = resumed && mode == "pair-device" && generation == connectionEpoch
+        val saved = computers.all()
+        val claim = UUID.randomUUID().toString() + UUID.randomUUID().toString()
+        val requestId = UUID.randomUUID().toString()
+        fun showError(error: Throwable) {
+            if (current()) message.text = error.message?.take(100) ?: "连接失败，请返回重试。"
+        }
+
+        fun prepare(pin: String) {
+            val transport = BridgeClient(target.url, claim, pin)
+            pairingClient = transport
+            pool.execute {
+                try {
+                    val info = transport.json("/api/connect/info")
+                    val id = info.getString("computerId")
+                    val name = info.optString("computerName").trim().take(40)
+                    require(id.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "电脑身份信息无效" }
+                    require(target.id.isEmpty() || target.id == id) { "此地址对应另一台电脑" }
+                    require(info.getString("certificateSha256") == pin) { "电脑证书不一致" }
+                    val old = saved.firstOrNull { it.id == id }
+                    require(old == null || old.pin == pin) { "电脑证书已变化，请核对原连接" }
+                    ui.post {
+                        if (!current()) return@post
+                        if (old != null) {
+                            runCatching {
+                                connectComputer(old.withAddress("lan",target.url))
+                            }.onFailure(::showError)
+                            return@post
+                        }
+                        title.text = name.ifBlank { target.name }
+                        if (!info.optBoolean("watchConfirmation")) {
+                            message.text = "请先更新并重启电脑连接服务。"
+                            return@post
+                        }
+                        if (info.optBoolean("lanProofRequired") && target.lanProof.isEmpty()) {
+                            message.text = "首次局域网配对请返回扫描并选择电脑。"
+                            return@post
+                        }
+                        if (name.isBlank()) {
+                            message.text = "电脑名称无效，请检查电脑连接配置。"
+                            return@post
+                        }
+                        message.text = if (info.optBoolean("watchPairingOpen")) "是否配对这台电脑？"
+                            else "请在电脑启动窗口按 L，再在这里确认。"
+                        val confirm = action("确认配对", true) {}
+                        list.addView(confirm, 3)
+                        confirm.setOnClickListener {
+                            confirm.isEnabled = false
+                            confirm.text = "正在配对…"
+                            message.text = ""
+                            pool.execute {
+                                try {
+                                    val request = JSONObject().put("requestId", requestId)
+                                        .put("claimHash", ConnectionAddress.hash(claim))
+                                        .put("mode", "lan").put("url", target.url)
+                                        .put("deviceName", "手表 ${android.os.Build.MODEL}").put("confirmation", "watch")
+                                        .put("lanProof",target.lanProof)
+                                    val created = transport.json("/api/connect/requests", request)
+                                    require(created.optString("state") == "approved") { "电脑未接受配对，请更新连接服务。" }
+                                    val result = transport.json("/api/connect/requests/$requestId")
+                                    require(result.optString("state") == "approved" &&
+                                        result.getString("computerId") == id && result.getString("certificateSha256") == pin) {
+                                        "电脑身份发生变化"
+                                    }
+                                    val token = result.getString("token")
+                                    require(token.length >= 32) { "设备授权无效" }
+                                    ui.post { if (current()) runCatching {
+                                        connectComputer(ComputerProfile(id, name, target.url, token, pin))
+                                    }.onFailure {
+                                        confirm.isEnabled = true
+                                        confirm.text = "重试配对"
+                                        showError(it)
+                                    } }
+                                } catch (error: Exception) {
+                                    ui.post { if (current()) {
+                                        confirm.isEnabled = true
+                                        confirm.text = "重试配对"
+                                        showError(error)
+                                    } }
+                                }
+                            }
+                        }
+                    }
+                } catch (error: Exception) {
+                    ui.post { showError(error) }
+                }
+            }
+        }
+
+        if (target.pin.isNotBlank()) prepare(target.pin)
+        else pool.execute {
+            try {
+                val pin = BridgeClient.probeLanCertificate(target.url)
+                ui.post { if (current()) prepare(pin) }
+            } catch (error: Exception) {
+                ui.post { showError(error) }
+            }
+        }
+    }
+
 
     private fun toggleRecording() {
         if(recording!=null) { finishRecording(); return }

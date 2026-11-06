@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 | 模型与额度 | 底部快捷切换模型和思考强度，查看账号额度。 |
 | 手表交互 | 表冠滚动、跟手返回、可调字号与触感、银紫龙娘主题。 |
 
-支持局域网扫描配对，也可选配自己的固定域名与隧道实现公网连接。
+支持局域网扫描配对，也可通过已有的 TCP 穿透，用 HTTPS 地址和一次性配对码添加外网连接。
 
 ## 开始使用
 
@@ -52,20 +52,20 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 ```text
 请帮我安装 https://github.com/cyuni1996/chatgpt-watch 。
-先阅读 AI_INSTALL.md，优先下载 Release 签名 APK 并校验 SHA-256。
+先阅读 AI_INSTALL.md，优先下载与电脑端源码同版本的 Release 签名 APK 并校验 SHA-256。
 保留已有应用、配对和草稿，用读取历史验证连接。
-需要我解锁手表、开启无线调试或核对配对码时，再提示我。
+需要我解锁手表、开启无线调试或确认首次连接时，再提示我。
 ```
 
-AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接服务；首次解锁与核对码仍由你完成。
+AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接服务。首次解锁和连接确认由你完成。
 
 ### 手动安装与其他方式
 
 - **手动安装：** [下载、安装与局域网配对](docs/INSTALL.zh-CN.md)。
-- **外网使用：** [固定域名与 Cloudflare 隧道](docs/INSTALL.zh-CN.md#公网连接)。
+- **外网使用：** [映射同一服务并使用一次性配对码](docs/INSTALL.zh-CN.md#外网连接)。
 - **修改源码：** [构建说明](docs/INSTALL.zh-CN.md#源码构建)与[开发指南](docs/DEVELOPMENT.md)。
 
-日常使用时，保持电脑、Codex 和连接服务运行。电脑重启后运行 `Start Companion.cmd`；日常聊天不需要 ADB。
+日常使用时，保持电脑、Codex 和连接服务运行。电脑重启后运行 `Start Companion.cmd`。首次局域网配对按 **L**，已有 TCP 穿透的外网配对按 **P** 生成一次性配对码。手表启动时检查正式版本，更新通过 ADB 手动安装。
 
 ## 操作速查
 
@@ -99,7 +99,7 @@ AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接�
 <details>
 <summary>已有版本无法覆盖安装怎么办？</summary>
 
-覆盖更新需要相同的应用标识和签名。先确认安装包来源；不要直接卸载或清数据。公开版标识为 `org.watchchat.app`，与其他标识的私人版分开安装。
+覆盖更新需要相同的应用标识和签名。默认标识为 `org.watchchat.app`。如果已有安装使用自定义标识，可以在同一份源码的本机配置中沿用它，并使用原签名更新。请保留已有安装及其数据。
 
 </details>
 

@@ -9,15 +9,15 @@ Use Codex on the target Windows computer, or another assistant with terminal acc
 ```text
 Please install https://github.com/cyuni1996/chatgpt-watch for me.
 Read AI_INSTALL.en.md in the repository first and follow its procedure.
-Prefer the signed APK from the project's GitHub Release, verify SHA-256, and avoid installing an unnecessary Android build toolchain.
+Prefer the signed Release APK matching the companion source version, and verify its SHA-256.
 Check computer dependencies, connect my watch, install the app, start the companion and guide me through LAN pairing.
 Preserve existing applications, pairing and drafts. Do not uninstall or clear data to resolve a signature conflict, and do not disable the firewall.
 Verify by reading history, without sending test prompts or approving real desktop actions.
-If I must unlock the watch, enable wireless debugging, enter its current pairing code or compare connection codes, explain briefly at that step.
+If I must unlock the watch, enable wireless debugging, enter its current debugging code or confirm the first connection, explain briefly at that step.
 Finish with how to chat, how to start it next time, and what was actually verified.
 ```
 
-The user must still unlock the watch, authorize wireless debugging and compare pairing codes. Android debugging codes and this application's connection codes are different. Never post them in public issues.
+The user must still unlock the watch, authorize wireless debugging and confirm the first connection. LAN chat connections require no code. The wireless debugging code is used for installation.
 
 ## Execution order
 
@@ -39,12 +39,12 @@ Obtain missing tools through official installers/package managers and respect th
 ### 2. Download and verify the signed APK
 
 ```powershell
-python tools/setup_watch.py download --tag v0.13.0
+python tools/setup_watch.py download
 ```
 
-The downloader fetches `chatgpt-watch-0.13.0.apk` and `SHA256SUMS` from this repository's release, matches the exact filename and verifies its digest. Files are stored in ignored `.local/downloads/v0.13.0/`. Stop on a mismatch; do not bypass verification.
+The downloader matches the checked-out source version to its GitHub Release, verifies SHA-256, and prints the APK path under `.local/downloads/`. If no matching release exists, build the source below or switch to a published Git tag and follow that tag's companion and watch setup instructions.
 
-The release uses its own public-build signing identity and application ID `org.watchchat.app`, separate from private builds with another ID. An existing app with the same ID but a different signature cannot be updated in place. **Report the conflict and preserve the installation; never automatically uninstall or clear data.**
+The release uses the default application ID `org.watchchat.app`. In-place updates require the same ID and signing key. If they differ, preserve the existing installation and data. The same source can keep a custom application ID through a local setting.
 
 ### 3. Install on the user's selected watch
 
@@ -52,7 +52,7 @@ Try `adb mdns services` for already paired devices. Ask for the watch's current 
 
 ```powershell
 adb connect WATCH_IP:DEBUG_PORT
-python tools/setup_watch.py install --apk .local/downloads/v0.13.0/chatgpt-watch-0.13.0.apk
+python tools/setup_watch.py install --apk PATH_TO_VERIFIED_APK
 ```
 
 Only authorized connected devices are accepted. With multiple devices, require `--serial WATCH_IP:DEBUG_PORT`. Use `--adb PATH_TO_ADB` if necessary. Installation uses `install -r` only, without an uninstall fallback.
@@ -67,9 +67,9 @@ python tools/setup_watch.py pair
 
 - When run inside the current Codex chat, use its real `CODEX_THREAD_ID`; the launcher saves it automatically. Never use a sample ID as a real caller.
 - If neither the variable nor saved local configuration exists, obtain an existing local Codex chat UUID and run `start --caller-thread-id REAL_CHAT_UUID`. Another AI must not invent a UUID to bypass this requirement.
-- If another service owns the port, identify and report it. Do not stop a private build, unrelated project or Codex desktop to take the port.
-- `pair` opens a three-minute window and waits. Have the user select **设置 → 电脑连接 → 局域网扫描** on the watch, select the computer, compare both codes, then enter `y` on the computer. Never automatically approve an unchecked code.
-- Do not deploy a public endpoint unless requested and a domain/tunnel is available.
+- If the port is occupied, identify its owner. Use this project's stop script from the checkout that started the companion. Leave unrelated services and Codex desktop running.
+- `pair` opens a three-minute LAN pairing window. For first-time pairing, scan for the computer on the watch, select it, then tap **确认配对** (Confirm pairing). The computer accepts the request and closes the window. To reconnect, select a saved computer, scan, or enter its address manually.
+- If the user requests Internet access, follow the manual guide for their existing TCP tunnel.
 
 ### 5. Read-only verification and handoff
 
@@ -83,7 +83,7 @@ Report the installed version, actual connection mode, completed/incomplete check
 
 ## Source-build fallback
 
-Requires JDK 17/21, Android SDK Platform 35 and Platform Tools. Set `ANDROID_HOME`/`ANDROID_SDK_ROOT` to the actual SDK.
+Requires JDK 17 or 21, Android SDK Platform 35, Build Tools 34.0.0, and Platform Tools. Set `JAVA_HOME` and `ANDROID_HOME` to the installed JDK and SDK.
 
 ```powershell
 python tools/setup_watch.py doctor --target build

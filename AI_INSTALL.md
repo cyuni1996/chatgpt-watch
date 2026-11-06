@@ -9,15 +9,15 @@
 ```text
 请帮我安装 https://github.com/cyuni1996/chatgpt-watch 。
 先阅读仓库 AI_INSTALL.md，并按其中流程操作。
-优先使用官方 Release 的签名 APK，下载后校验 SHA-256，避免安装不需要的 Android 构建环境。
+优先使用与电脑端源码同版本的 Release 签名 APK，并校验 SHA-256。
 请检查电脑依赖、连接我的手表、安装应用、启动连接服务并指导我完成局域网配对。
 保留已有应用、配对和草稿，不要因签名冲突卸载或清数据，也不要关闭防火墙。
 用读取历史验证连接，不发送测试聊天、不批准真实操作。
-如果必须由我解锁、开启无线调试、输入当次配对码或核对连接码，请在那一步简短说明。
+如果需要我解锁、开启无线调试、输入当次调试配对码或确认首次连接，请在那一步简短说明。
 完成后告诉我如何开始聊天、下次如何启动，以及实际验证结果。
 ```
 
-用户仍需亲自完成手表解锁、无线调试授权和两端核对码。首次安装时的调试配对码与应用连接核对码是两回事，不要公开发送到 GitHub。
+用户仍需亲自解锁手表、授权无线调试并确认首次连接。局域网聊天连接无需配对码。无线调试码只用于安装。
 
 ## AI 执行顺序
 
@@ -39,12 +39,12 @@ python tools/setup_watch.py doctor --target install
 ### 2. 下载并校验公开安装包
 
 ```powershell
-python tools/setup_watch.py download --tag v0.13.0
+python tools/setup_watch.py download
 ```
 
-默认从本仓库 GitHub Release 下载 `chatgpt-watch-0.13.0.apk` 与 `SHA256SUMS`，精确匹配文件名并验证哈希；下载到忽略的 `.local/downloads/v0.13.0/`。失败就停止该安装步骤，不绕过校验。
+下载器根据当前源码版本匹配 GitHub Release，在 `.local/downloads/` 保存校验过的 APK，并输出实际路径。没有匹配的发布包时，走下方源码构建，或切换到已发布的 Git 标签并按该标签的文档安装电脑端和手表端。
 
-发布包使用独立公开版签名，标识为 `org.watchchat.app`。它与其他标识的私人版分开安装。同标识但不同签名的旧包无法直接覆盖：**报告冲突，保留原安装，不能自动卸载或清除数据**。
+发布包的默认标识为 `org.watchchat.app`。覆盖更新需要和已有安装的标识及签名一致。遇到冲突时保留原安装和数据。自定义标识可通过同一份源码的本机配置沿用。
 
 ### 3. 安装到用户明确指定的手表
 
@@ -52,7 +52,7 @@ python tools/setup_watch.py download --tag v0.13.0
 
 ```powershell
 adb connect WATCH_IP:DEBUG_PORT
-python tools/setup_watch.py install --apk .local/downloads/v0.13.0/chatgpt-watch-0.13.0.apk
+python tools/setup_watch.py install --apk PATH_TO_VERIFIED_APK
 ```
 
 安装器只接受已授权的 ADB 设备。多设备必须加 `--serial WATCH_IP:DEBUG_PORT`，没有匹配设备时不会随意选择。ADB 不在 PATH 时加 `--adb PATH_TO_ADB`。只使用 `install -r`，失败不降级为卸载重装。
@@ -67,9 +67,9 @@ python tools/setup_watch.py pair
 
 - 在 Codex 当前聊天中启动时，使用当前环境真实的 `CODEX_THREAD_ID`；启动器自动保存。切勿把本指南里的示例当作真实 ID。
 - 若环境没有该变量，也没有本机已保存配置，请取得真实、已存在的本地 Codex 聊天 UUID，执行 `python tools/setup_watch.py start --caller-thread-id REAL_CHAT_UUID`。其他 AI 不能伪造 UUID 绕过这一步。
-- 若端口已被其他工程的服务占用，核实归属并报告；不要停止私人版、其他项目或 Codex 桌面来强占端口。
-- `pair` 开启 3 分钟窗口并等待操作。让用户在手表选择 **设置 → 电脑连接 → 局域网扫描**、点击电脑、核对两端同一组码，再在电脑输入 `y`。AI 不能在未核对时自动答 `y`。
-- 不自动部署公网。只有用户需要并准备了域名／隧道时才按详细文档配置。
+- 若端口已被占用，先核实是否为本项目的旧连接服务。停止本项目服务请使用对应源码目录中的停止脚本，保留其他项目和 Codex 桌面。
+- `pair` 开启 3 分钟的局域网配对窗口。首次在手表扫描并点选电脑，核对名称后点 **确认配对**，电脑会自动接受并关闭窗口。重连可直接点已保存的电脑，也可扫描或手动填写地址。
+- 用户需要外网连接时，按详细文档接入已有的 TCP 穿透。
 
 ### 5. 只读验收与交付
 
@@ -83,7 +83,7 @@ python tools/setup_watch.py verify
 
 ## 源码构建备用路线
 
-需要 JDK 17/21、Android SDK Platform 35 和 Platform Tools。用 `ANDROID_HOME`／`ANDROID_SDK_ROOT` 指向实际 SDK 后执行：
+需要 JDK 17 或 21、Android SDK Platform 35、Build Tools 34.0.0 和 Platform Tools。用 `JAVA_HOME` 指向 JDK，用 `ANDROID_HOME` 指向 SDK 后执行：
 
 ```powershell
 python tools/setup_watch.py doctor --target build

@@ -785,18 +785,4 @@ if __name__ == '__main__':
     atomic_json(LOCAL/'connection.json',config)
     connections=Connections(config,LOCAL)
     application=make_app(Companion(config['token'], cwd=args.cwd),connections)
-    endpoint=connections.public_endpoint()
-    if endpoint:
-        async def serve():
-            runner=web.AppRunner(application,access_log=None)
-            await runner.setup()
-            try:
-                await web.TCPSite(runner,args.host,args.port,ssl_context=context).start()
-                # Tunnel traffic enters only through loopback. LAN remains pinned HTTPS.
-                await web.TCPSite(runner,'127.0.0.1',endpoint['originPort']).start()
-                await asyncio.Event().wait()
-            finally:await runner.cleanup()
-        try:asyncio.run(serve())
-        except KeyboardInterrupt:pass
-    else:
-        web.run_app(application, host=args.host, port=args.port, ssl_context=context, access_log=None)
+    web.run_app(application, host=args.host, port=args.port, ssl_context=context, access_log=None)

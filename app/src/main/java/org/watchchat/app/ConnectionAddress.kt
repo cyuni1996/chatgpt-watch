@@ -2,8 +2,49 @@ package org.watchchat.app
 
 import java.net.URI
 import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 object ConnectionAddress {
+    fun internetUrl(value: String): String {
+        val address = URI(value.trim())
+        require(address.scheme.equals("https",ignoreCase=true) && address.host != null &&
+            address.rawUserInfo == null && address.rawQuery == null && address.rawFragment == null &&
+            address.rawPath in listOf("","/") && (address.port == -1 || address.port in 1..65535) &&
+            !address.rawAuthority.endsWith(":")) { "请输入完整 HTTPS 地址，可带端口" }
+        return "https://"+address.rawAuthority
+    }
+
+    fun internetCode(value: String): String {
+        val code = value.replace("-","").filterNot(Char::isWhitespace).uppercase(java.util.Locale.ROOT)
+        require(code.matches(Regex("[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16}"))) { "请输入电脑显示的 16 位外网配对码" }
+        return code
+    }
+
+    fun internetProof(code: String, role: String, pin: String, nonce: String, vararg fields: String): String {
+        val message = (listOf("watch-internet-v1",role,pin,nonce)+fields).joinToString("\n")
+        return Mac.getInstance("HmacSHA256").run {
+            init(SecretKeySpec(code.toByteArray(Charsets.US_ASCII),"HmacSHA256"))
+            doFinal(message.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        }
+    }
+    fun manualLanUrl(ip: String, port: String): String {
+        val host = ip.trim().removeSurrounding("[", "]")
+        val number = port.trim().toIntOrNull()
+        require(number != null && number in 1..65535) { "请输入有效的端口（1–65535）" }
+        val ipv4 = host.split('.').let { parts ->
+            parts.size == 4 && parts.all { part ->
+                part.matches(Regex("0|[1-9][0-9]{0,2}")) && part.toInt() in 0..255
+            }
+        }
+        val ipv6 = host.contains(':') && host.matches(Regex("[0-9a-fA-F:.]+"))
+        require(ipv4 || ipv6) { "请输入电脑的 IP 地址" }
+        val authority = if (ipv6) "[$host]" else host
+        val address = "https://$authority:$number"
+        require(runCatching { URI(address).host }.getOrNull() != null) { "请输入有效的 IP 地址" }
+        return address
+    }
+
     /** Pick an address on the watch's Wi-Fi subnet, never a PC's virtual adapter. */
     fun lanAddress(addresses:List<String>,subnets:List<Pair<String,Int>>):String? {
         fun ipv4(value:String):Long? {
@@ -20,14 +61,5 @@ object ConnectionAddress {
             }
         }
     }
-    fun publicUrl(value:String):String {
-        val raw=if(value.trim().contains("://"))value.trim() else "https://"+value.trim()
-        val u=URI(raw);val host=u.host?.lowercase() ?: error("请输入有效的公网域名")
-        require(u.scheme.lowercase()=="https" && u.rawUserInfo==null && u.rawQuery==null && u.rawFragment==null && u.path in listOf("","/") && u.port in listOf(-1,443)) { "请输入HTTPS域名，不包含路径或端口" }
-        require(host.contains('.') && !host.matches(Regex("[0-9.]+")) && !host.contains(':') && !host.endsWith(".local") && !host.endsWith(".lan") && !host.endsWith(".internal")) { "公网模式请使用固定域名" }
-        return "https://$host"
-    }
     fun hash(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-    fun code(id:String,pin:String,mode:String,url:String,requestId:String,claimHash:String):String =
-        hash(listOf("watch-pair-v1",id,pin,mode,url,requestId,claimHash).joinToString("\n")).take(12).uppercase().chunked(4).joinToString("-")
 }
