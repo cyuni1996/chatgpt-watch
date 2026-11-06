@@ -23,10 +23,10 @@
 
 ### 1. 只读检查，选择最短安装路线
 
-将仓库克隆到本机普通目录。检查 `python --version`、`node --version`、`codex --version` 与 ADB；使用已有工具，不依赖维护者的目录。
+从 [最新正式发布](https://github.com/cyuni1996/chatgpt-watch/releases/latest) 确认版本，将对应标签克隆到本机普通目录。下面以 `v0.13.9` 为例。检查 `python --version`、`node --version`、`codex --version` 与 ADB，并优先复用已有工具。
 
 ```powershell
-git clone https://github.com/cyuni1996/chatgpt-watch.git
+git clone --branch v0.13.9 https://github.com/cyuni1996/chatgpt-watch.git
 cd chatgpt-watch
 python tools/setup_watch.py doctor --target companion --desktop
 python tools/setup_watch.py doctor --target install
@@ -46,7 +46,7 @@ python tools/setup_watch.py download
 
 发布包的默认标识为 `org.watchchat.app`。覆盖更新需要和已有安装的标识及签名一致。遇到冲突时保留原安装和数据。自定义标识可通过同一份源码的本机配置沿用。
 
-从公开版 v0.13.0 升级到 v0.13.9 时，先告知用户签名已更换。由用户决定是否手动卸载旧版。卸载会清除手表上的本地设置和配对信息，安装新版后需重新配对。
+从 GitHub 发布的 v0.13.0 升级到 v0.13.9 时，先告知用户签名已更换。由用户决定是否手动卸载旧版。卸载会清除手表上的本地设置、草稿和配对信息，安装新版后需重新配对。 [升级步骤](docs/INSTALL.zh-CN.md#升级已安装的版本)
 
 ### 3. 安装到用户明确指定的手表
 
@@ -71,7 +71,7 @@ python tools/setup_watch.py pair
 - 若环境没有该变量，也没有本机已保存配置，请取得真实、已存在的本地 Codex 聊天 UUID，执行 `python tools/setup_watch.py start --caller-thread-id REAL_CHAT_UUID`。其他 AI 不能伪造 UUID 绕过这一步。
 - 若端口已被占用，先核实是否为本项目的旧连接服务。停止本项目服务请使用对应源码目录中的停止脚本，保留其他项目和 Codex 桌面。
 - `pair` 开启 3 分钟的局域网配对窗口。首次在手表扫描并点选电脑，核对名称后点 **确认配对**，电脑会自动接受并关闭窗口。重连可直接点已保存的电脑，也可扫描或手动填写地址。
-- 用户需要外网连接时，按详细文档接入已有的 TCP 穿透。
+- 用户需要外网连接时，接入已有的 TCP 穿透，并在 `Start Companion.cmd` 按 **P** 生成一次性配对码。 [外网连接说明](docs/INSTALL.zh-CN.md#外网连接)
 
 ### 5. 只读验收与交付
 

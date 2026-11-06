@@ -44,6 +44,10 @@ Regressions use synthetic fixtures. Hardware automation separately requires auth
 
 Build and sign from the `v<versionName>` tag, name the APK `chatgpt-watch-<versionName>.apk`, and attach it with `SHA256SUMS` to the same Release. Use `<sha256>  <filename>` for the checksum entry and run `apksigner verify` before publishing.
 
+打标签前核对中英文 README、安装指南和更新记录，确认下载文件名、签名迁移说明、启动命令和配对流程与本版一致。发布说明链接到 `main` 的中英文安装指南，便于补充文档。
+
+Before tagging, check both READMEs, both installation guides and the changelog against the release assets, signing changes, startup command and pairing flow. Link the release notes to the maintained installation guides on `main`.
+
 ## 提交前检查 / Before publishing
 
 ```powershell

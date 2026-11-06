@@ -4,7 +4,9 @@
 
 **Recommended: use the [AI installation runbook](../AI_INSTALL.en.md).** The prebuilt release is already signed; installing it requires ADB, not an Android source-build toolchain. Full manual/developer instructions remain below.
 
-These instructions cover a complete first installation. Verify LAN history reading before setting up Internet access. The companion primarily supports Windows.
+This guide is maintained on `main`. A tagged copy is the documentation snapshot for that release. Use the same release for the companion source and signed APK. [Current guide](https://github.com/cyuni1996/chatgpt-watch/blob/main/docs/INSTALL.en.md) · [Latest stable release](https://github.com/cyuni1996/chatgpt-watch/releases/latest)
+
+The companion primarily supports Windows. If the app is already installed, see [the upgrade steps](#upgrading-an-existing-installation) first.
 
 ## Preflight
 
@@ -28,7 +30,7 @@ python tools/setup_watch.py deps
 python tools/setup_watch.py download
 ```
 
-The downloader verifies the release SHA-256 and prints the APK path. Follow the setup instructions in the checked-out tag. For a development checkout without a matching release, see [source build](#source-build). Enable wireless debugging on the watch and use its current addresses. Pairing and debugging ports usually differ.
+The downloader verifies the release SHA-256 and prints the APK path. You can also download the APK and `SHA256SUMS` from the release page. For a development checkout without a matching release, see [source build](#source-build). Enable wireless debugging on the watch and use its current addresses. The wireless debugging pairing and connection ports usually differ.
 
 ```powershell
 adb pair WATCH_IP:PAIRING_PORT
@@ -37,6 +39,21 @@ python tools/setup_watch.py install --apk .local/downloads/v0.13.9/chatgpt-watch
 ```
 
 Skip `adb pair` for an already paired watch. Add `--serial` for multiple devices and `--adb` when ADB is not on PATH. The public app ID is `org.watchchat.app`; in-place updates need the same ID and signing key. Never automatically uninstall or clear data after an installation failure.
+
+## Upgrading an existing installation
+
+1. Download the signed APK from the [latest stable release](https://github.com/cyuni1996/chatgpt-watch/releases/latest) and verify its SHA-256. When the application ID and signing key match, the installation command above updates the app in place and retains watch data.
+2. The **GitHub releases v0.13.0 and v0.13.9** use different signing keys. Verify where the old app came from, save any drafts you need, and manually uninstall it from the watch's app settings. Uninstalling clears local settings, drafts and pairings. Pair again after installing the new APK. For other signature conflicts, verify the installation source first.
+3. Stop the old companion from its existing directory, then switch that checkout to the tag matching the new APK. Keep its `.local/` directory to retain the computer identity and cache. Install the new version's dependencies and run **Start Companion.cmd**. Press **L** for LAN pairing or **P** for Internet pairing when needed.
+
+For example, to update to `v0.13.9` from the existing companion checkout:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
+git fetch origin --tags
+git switch --detach v0.13.9
+python tools/setup_watch.py deps
+```
 
 ## Caller context and lifecycle
 
@@ -99,10 +116,11 @@ python tools/setup_watch.py install
 
 Use `build --mirror` to explicitly enable repository mirrors if needed. Debug signing differs from the public Release key; check the installed signature before updating. Run `.\gradlew.bat :app:assembleRelease` for an unsigned release build, then sign it with your own privately backed-up key. See [Android documentation](https://developer.android.com/build/building-cmdline).
 
+For an existing custom application ID, set `watchchat.applicationId` in the Git-ignored `local.properties`. If the installed app uses this computer's current debug key, set `watchchat.signWithDebugKey=true` to use it for the local Release build. Keep build settings and connection data on this computer.
+
 ## Updating and diagnostics
 
-- On startup, the watch checks GitHub for the latest stable release and shows the newer version when available. Download the signed APK, verify its SHA-256, install it manually with ADB, and update the companion to the matching release tag. You can update in place when the application ID and signing key match.
-- When upgrading from the public v0.13.0 to v0.13.9, verify the source of your installed app and manually uninstall the old version. This clears local watch settings and pairing information. After installing the new APK, run **Start Companion.cmd** and press **L** for LAN pairing or **P** for a one-time Internet pairing code. [v0.13.9 release notes](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.9)
+- On startup, the watch checks GitHub for the latest stable release and shows the newer version when available. Follow the [upgrade steps](#upgrading-an-existing-installation) to install it manually with ADB.
 - If you build from source, back up your local configuration and signing key privately. Update the source and dependencies, rebuild, install with the same key, and restart the companion.
 - Companion logs are in `.local/computers/<machine-key>/server.stdout.log` and `server.stderr.log`. Redact chat IDs, messages, paths, domains, hostnames and credentials before sharing.
 - If a port is occupied, stop only a process verified to belong to this project. Do not terminate Codex desktop or unrelated services.

@@ -23,10 +23,10 @@ The user must still unlock the watch, authorize wireless debugging and confirm t
 
 ### 1. Inspect and choose the shortest route
 
-Clone to a normal local directory. Check Python, Node, Codex CLI and ADB, reusing installed tools without assuming the maintainer's paths.
+Check the [latest stable release](https://github.com/cyuni1996/chatgpt-watch/releases/latest) and clone its matching tag into a local directory. The example uses `v0.13.9`. Check Python, Node, Codex CLI and ADB, reusing installed tools.
 
 ```powershell
-git clone https://github.com/cyuni1996/chatgpt-watch.git
+git clone --branch v0.13.9 https://github.com/cyuni1996/chatgpt-watch.git
 cd chatgpt-watch
 python tools/setup_watch.py doctor --target companion --desktop
 python tools/setup_watch.py doctor --target install
@@ -46,7 +46,7 @@ The downloader matches the checked-out source version to its GitHub Release, ver
 
 The release uses the default application ID `org.watchchat.app`. In-place updates require the same ID and signing key. If they differ, preserve the existing installation and data. The same source can keep a custom application ID through a local setting.
 
-When upgrading from the public v0.13.0 to v0.13.9, tell the user that the signing key changed and let them decide whether to uninstall the old app manually. Uninstalling clears local watch settings and pairing information. Pair again after installing the new release.
+When upgrading from the GitHub release of v0.13.0 to v0.13.9, tell the user that the signing key changed and let them decide whether to uninstall the old app manually. Uninstalling clears local watch settings, drafts and pairings. Pair again after installing the new release. [Upgrade steps](docs/INSTALL.en.md#upgrading-an-existing-installation)
 
 ### 3. Install on the user's selected watch
 
@@ -71,7 +71,7 @@ python tools/setup_watch.py pair
 - If neither the variable nor saved local configuration exists, obtain an existing local Codex chat UUID and run `start --caller-thread-id REAL_CHAT_UUID`. Another AI must not invent a UUID to bypass this requirement.
 - If the port is occupied, identify its owner. Use this project's stop script from the checkout that started the companion. Leave unrelated services and Codex desktop running.
 - `pair` opens a three-minute LAN pairing window. For first-time pairing, scan for the computer on the watch, select it, then tap **确认配对** (Confirm pairing). The computer accepts the request and closes the window. To reconnect, select a saved computer, scan, or enter its address manually.
-- If the user requests Internet access, follow the manual guide for their existing TCP tunnel.
+- For Internet access, use the existing TCP tunnel and press **P** in `Start Companion.cmd` to generate a one-time code. [Internet connection instructions](docs/INSTALL.en.md#internet-connection)
 
 ### 5. Read-only verification and handoff
 

@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 <p align="center">
   <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><b>下载签名 APK 和 SHA-256</b></a> ·
   <a href="AI_INSTALL.md"><b>让 AI 帮我安装</b></a> ·
-  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">离线演示页</a>
+  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">v0.13.0 离线演示</a>
 </p>
 
 <sub>53 秒实机录屏；聊天、模型和额度为演示数据。</sub>
@@ -46,7 +46,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 
 **运行条件：** Android 11 / API 30+ 的兼容手表；Windows 电脑上已登录 Codex，安装 Python 3.11+ 和 Node.js 20+。安装 APK 需要 ADB；使用发布包不需要 Android Studio 或 JDK。
 
-**从 v0.13.0 升级到 v0.13.9**。发布签名已更换，需要手动卸载旧版再安装。卸载会清除手表上的本地设置和配对信息。安装后重新配对电脑。 [v0.13.9 发布说明](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.9)
+**从 GitHub 发布的 v0.13.0 升级到 v0.13.9**。这两个版本签名不同。确认安装来源并保存仍需要的本地草稿后，在手表上手动卸载旧版。卸载会清除手表端本地设置、草稿和配对信息。安装后重新配对电脑。 [升级步骤](docs/INSTALL.zh-CN.md#升级已安装的版本)
 
 ### 推荐：交给 AI 安装
 
@@ -59,7 +59,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 需要我解锁手表、开启无线调试或确认首次连接时，再提示我。
 ```
 
-AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接服务。首次解锁和连接确认由你完成。
+AI 按 [安装指南](AI_INSTALL.md)检查环境、安装应用并启动连接服务。首次局域网配对在手表上确认。
 
 ### 手动安装与其他方式
 

@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/c6b781af-372e-4de7-a3f0-96b153650c7e
 <p align="center">
   <a href="https://github.com/cyuni1996/chatgpt-watch/releases/latest"><b>Download signed APK and SHA-256</b></a> ·
   <a href="AI_INSTALL.en.md"><b>Install with AI</b></a> ·
-  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">Offline demo</a>
+  <a href="https://github.com/cyuni1996/chatgpt-watch/releases/download/v0.13.0/watch-demo.html">v0.13.0 offline demo</a>
 </p>
 
 <sub>53-second real-watch recording with fictional chats, model entries and usage values.</sub>
@@ -46,7 +46,7 @@ Discover and pair on the LAN, or use an HTTPS address and a one-time pairing cod
 
 **Requirements:** a compatible Android 11 / API 30+ watch; a Windows computer with signed-in Codex desktop, Python 3.11+ and Node.js 20+. ADB is needed to install the APK. The prebuilt release does not require Android Studio or JDK.
 
-**Upgrading from v0.13.0 to v0.13.9.** The release signing key has changed. Manually uninstall the old version before installing the new one. This clears local watch settings and pairing information. Pair the watch with your computer again after installation. [v0.13.9 release notes](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.9)
+**Upgrading from the GitHub release of v0.13.0 to v0.13.9.** The releases use different signing keys. Verify the source of the installed app and save any drafts you need before uninstalling the old version on the watch. Uninstalling clears local settings, drafts and pairings. Pair again after installing the new version. [Upgrade steps](docs/INSTALL.en.md#upgrading-an-existing-installation)
 
 ### Recommended: install with AI
 
@@ -56,10 +56,10 @@ Copy this request to an assistant with terminal access on your computer:
 Please install https://github.com/cyuni1996/chatgpt-watch .
 Read AI_INSTALL.en.md first. Prefer the signed Release APK matching the companion source and verify its SHA-256.
 Preserve existing apps, pairing and drafts; verify by reading history.
-Tell me when I must unlock the watch, enable wireless debugging or compare codes.
+Tell me when I must unlock the watch, authorize wireless debugging, or confirm the first connection on the watch.
 ```
 
-The assistant follows the [installation runbook](AI_INSTALL.en.md) to check prerequisites, install and start the companion. You still unlock the watch and compare pairing codes.
+The assistant follows the [installation runbook](AI_INSTALL.en.md) to check prerequisites, install and start the companion. Confirm first-time LAN pairing on the watch.
 
 ### Manual installation and other options
 

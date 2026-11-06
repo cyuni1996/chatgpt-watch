@@ -4,7 +4,9 @@
 
 **推荐：直接使用 [AI 安装指南](../AI_INSTALL.md)。** 发布包已经签名，安装到手表只需 ADB，无需源码构建环境。以下保留完整手动和开发安装步骤。
 
-以下步骤可独立完成首次安装。建议先验证局域网读取历史，再配置公网。电脑端目前主要支持 Windows。
+本文维护在 `main` 分支。发布标签下的文档是该版本发布时的快照。安装时，电脑端源码和签名 APK 要使用同一发布版本。 [最新版说明](https://github.com/cyuni1996/chatgpt-watch/blob/main/docs/INSTALL.zh-CN.md) · [最新正式发布](https://github.com/cyuni1996/chatgpt-watch/releases/latest)
+
+电脑端目前主要支持 Windows。已有安装请先阅读[升级步骤](#升级已安装的版本)。
 
 ## 安装前检查
 
@@ -28,7 +30,7 @@ python tools/setup_watch.py deps
 python tools/setup_watch.py download
 ```
 
-下载器会校验 Release 的 SHA-256，并输出安装包路径。下载后，以该标签内的安装文档为准。从开发分支拉取的源码如果没有同版本 Release，请走[源码构建](#源码构建)。手表开启无线调试后，用当次实际地址操作。配对端口与调试端口通常不同，配对码按提示输入。
+下载器会校验 Release 的 SHA-256，并输出安装包路径。也可以在发布页手动下载 APK 和 `SHA256SUMS`。从开发分支拉取的源码如果没有同版本 Release，请走[源码构建](#源码构建)。手表开启无线调试后，用当次实际地址操作。无线调试的配对端口与连接端口通常不同，配对码按提示输入。
 
 ```powershell
 adb pair WATCH_IP:PAIRING_PORT
@@ -37,6 +39,21 @@ python tools/setup_watch.py install --apk .local/downloads/v0.13.9/chatgpt-watch
 ```
 
 已配对的手表可跳过 `adb pair`。多设备时为安装器加 `--serial`，ADB 不在 PATH 时加 `--adb`。默认应用标识为 `org.watchchat.app`。覆盖更新需保持标识与签名一致。安装失败时请保留已有安装及其数据。
+
+## 升级已安装的版本
+
+1. 从[最新正式发布](https://github.com/cyuni1996/chatgpt-watch/releases/latest)下载签名 APK 并校验 SHA-256。应用标识和签名一致时，运行上面的安装命令即可覆盖更新并保留手表端数据。
+2. 从 **GitHub 发布的 v0.13.0 升级到 v0.13.9** 时，两个版本的签名不同。确认旧版来源后，先保存需要保留的草稿，再在手表的应用管理里手动卸载旧版。卸载会清除手表端设置、草稿和配对信息。安装新版后重新配对。遇到其他签名冲突时，先核对安装包来源。
+3. 在原电脑端目录停止旧连接服务，再将源码切换到与新版 APK 一致的标签。保留该目录的 `.local/`，这样电脑身份和缓存能继续使用。安装新版本依赖后运行 **Start Companion.cmd**。需要配对时，局域网按 **L**，外网按 **P**。
+
+例如，在原电脑端仓库目录更新到 `v0.13.9`：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/stop-companion.ps1
+git fetch origin --tags
+git switch --detach v0.13.9
+python tools/setup_watch.py deps
+```
 
 ## 调用聊天配置与服务生命周期
 
@@ -103,8 +120,7 @@ python tools/setup_watch.py install
 
 ## 更新与排查
 
-- 手表启动时会查询 GitHub 最新正式 Release，发现新版时提示版本号。请下载新版签名 APK，校验 SHA-256，再通过 ADB 手动安装，并将电脑端更新到同一发布标签。应用标识和签名一致时可以覆盖安装。
-- 从公开版 v0.13.0 升级到 v0.13.9 时，先确认安装来源，再手动卸载旧版。卸载会清除手表上的本地设置和配对信息。安装新版后，运行 **Start Companion.cmd**，按 **L** 进行局域网配对，或按 **P** 生成外网配对码。 [v0.13.9 发布说明](https://github.com/cyuni1996/chatgpt-watch/releases/tag/v0.13.9)
+- 手表启动时会查询 GitHub 最新正式 Release，发现新版时提示版本号。按[升级步骤](#升级已安装的版本)通过 ADB 手动安装。
 - 自行构建的用户应私下备份本机配置和签名密钥。更新源码、安装依赖并重新构建后，用同一签名覆盖安装，再重启电脑端连接服务。
 - 电脑服务日志位于 `.local/computers/<machine-key>/server.stdout.log` 和 `server.stderr.log`。分享之前先删掉会话、消息、路径、域名、主机名与口令。
 - 同端口已有服务时只停止自己确认属于此工程的进程，不要终止 Codex 桌面或其他工程。
